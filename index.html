@@ -1,0 +1,203 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Position Engine</title>
+<meta name="description" content="Position size, automatic stop loss and target from account risk.">
+<style>
+:root{color-scheme:light;--bg:#fafaf9;--paper:#fff;--ink:#171717;--muted:#777;--line:#e5e5e2;--green:#087b55;--red:#c43c32;--focus:#245f9e;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font-size:15px;-webkit-font-smoothing:antialiased}
+main{width:min(900px,100%);margin:auto;padding:54px 32px 36px}
+header{display:flex;align-items:center;justify-content:space-between;margin-bottom:48px}
+h1{font-size:25px;letter-spacing:-.06em;font-weight:650;margin:0}
+.layout{display:grid;grid-template-columns:minmax(0,.9fr) minmax(0,1.1fr);gap:64px;align-items:start}
+.inputs{display:grid;gap:28px;min-width:0}
+.direction{display:flex;gap:22px;border-bottom:1px solid var(--line)}
+.direction button{background:none;border:0;padding:0 0 11px;color:var(--muted);font:600 14px inherit;cursor:pointer;position:relative}
+.direction button[aria-pressed=true]{color:var(--ink)}
+.direction button[aria-pressed=true]::after{content:"";position:absolute;bottom:-1px;left:0;right:0;height:2px;background:var(--accent)}
+.direction[data-dir=LONG]{--accent:var(--green)}.direction[data-dir=SHORT]{--accent:var(--red)}
+.field{display:grid;gap:8px;min-width:0}
+label{font-size:11px;font-weight:650;letter-spacing:.08em;color:var(--muted);text-transform:uppercase}
+.control{display:flex;align-items:center;gap:8px;border-bottom:1px solid #aaa;padding:0 0 9px;min-height:42px}
+.control:focus-within{border-bottom:2px solid var(--ink)}
+input,select{width:100%;min-width:0;border:0;outline:0;background:transparent;color:var(--ink);font:500 18px inherit;font-size:18px;font-variant-numeric:tabular-nums}
+input[type=number]{appearance:textfield}input::-webkit-inner-spin-button,input::-webkit-outer-spin-button{-webkit-appearance:none;margin:0}
+.prefix,.suffix{color:var(--muted);white-space:nowrap}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:24px}
+.symbol-wrap{position:relative}
+#symbol{font-weight:650;text-transform:uppercase;letter-spacing:.04em}
+#suggestions{position:absolute;z-index:5;top:calc(100% + 4px);left:0;right:0;max-height:260px;overflow:auto;margin:0;padding:4px 0;list-style:none;background:#fff;border:1px solid var(--line);box-shadow:0 8px 24px #0000000d}
+#suggestions[hidden]{display:none}
+#suggestions li{padding:10px 12px;display:flex;justify-content:space-between;gap:14px;cursor:pointer}
+#suggestions li:hover,#suggestions li[aria-selected=true]{background:#f0f0ed}
+.s-symbol{font-weight:650}.s-name{color:var(--muted);font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.hint{margin:0;color:var(--muted);font-size:12px}
+.result{border-left:1px solid var(--line);padding-left:36px;min-width:0}
+.result-head{display:flex;justify-content:space-between;gap:12px;align-items:center;border-bottom:1px solid var(--line);padding-bottom:16px}
+#result-symbol{font-size:13px;font-weight:700;letter-spacing:.05em}
+#status{font-size:12px;color:var(--muted);text-align:right}
+#status.error{color:var(--red)}
+.big{margin:28px 0 32px}
+.big-label{color:var(--muted);font-size:11px;font-weight:650;letter-spacing:.08em}
+#quantity{font-size:clamp(58px,8vw,86px);line-height:1;letter-spacing:-.08em;font-weight:550;overflow-wrap:anywhere;font-variant-numeric:tabular-nums}
+#unit{color:var(--muted);font-size:13px;margin-left:8px}
+.rows{margin:0}
+.rows div{display:flex;justify-content:space-between;align-items:baseline;gap:16px;padding:13px 0;border-top:1px solid var(--line)}
+.rows div:last-child{border-bottom:1px solid var(--line)}
+dt{color:var(--muted);font-size:13px}dd{margin:0;font-size:14px;font-weight:600;text-align:right;font-variant-numeric:tabular-nums}
+#warning{font-size:12px;color:var(--red);line-height:1.5;margin:15px 0 0}
+footer{margin-top:48px;padding-top:15px;border-top:1px solid var(--line);font-size:11px;color:var(--muted);line-height:1.5}
+button:focus-visible,input:focus-visible,select:focus-visible{outline:2px solid var(--focus);outline-offset:3px}
+@media(max-width:700px){main{padding:32px 22px}.layout{grid-template-columns:1fr;gap:38px}header{margin-bottom:34px}.result{border-left:0;border-top:1px solid var(--line);padding:26px 0 0}.grid2{gap:20px}}
+@media(max-width:380px){.grid2{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+<main>
+<header><h1>Position Engine</h1></header>
+<div class="layout">
+<section class="inputs" aria-label="Trade inputs">
+  <div class="direction" id="direction" data-dir="LONG" role="group" aria-label="Direction">
+    <button type="button" data-side="LONG" aria-pressed="true">Long</button>
+    <button type="button" data-side="SHORT" aria-pressed="false">Short</button>
+  </div>
+  <div class="field">
+    <label for="symbol">Symbol</label>
+    <div class="symbol-wrap">
+      <div class="control"><input id="symbol" value="AAPL" autocomplete="off" autocapitalize="characters" spellcheck="false" role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="suggestions"></div>
+      <ul id="suggestions" role="listbox" hidden></ul>
+    </div>
+    <p class="hint">Type to search symbols by their starting letters.</p>
+  </div>
+  <div class="grid2">
+    <div class="field"><label for="equity">Account equity</label><div class="control"><span class="prefix">$</span><input id="equity" type="number" min=".01" step="any" value="10000"></div></div>
+    <div class="field"><label for="risk">Risk per trade</label><div class="control"><input id="risk" type="number" min=".01" max="100" step="any" value="1"><span class="suffix">%</span></div></div>
+    <div class="field"><label for="rr">Take profit</label><div class="control"><input id="rr" type="number" min=".01" max="100" step="any" value="2"><span class="suffix">R</span></div></div>
+    <div class="field"><label for="timeframe">Timeframe</label><div class="control"><select id="timeframe"><option value="1m">1 minute</option><option value="5m">5 minutes</option><option value="15m">15 minutes</option><option value="30m">30 minutes</option><option value="1h">1 hour</option><option value="4h">4 hours</option><option value="1d" selected>Daily</option><option value="1w">Weekly</option></select></div></div>
+  </div>
+</section>
+<section class="result" id="result" aria-label="Position calculation">
+  <div class="result-head"><span id="result-symbol">AAPL</span><span id="status" aria-live="polite">Calculating…</span></div>
+  <div class="big"><div class="big-label">POSITION SIZE</div><span id="quantity">—</span><span id="unit"></span></div>
+  <dl class="rows">
+    <div><dt>Entry</dt><dd id="entry">—</dd></div>
+    <div><dt>Stop loss</dt><dd id="stop">—</dd></div>
+    <div><dt>Take profit</dt><dd id="target">—</dd></div>
+    <div><dt>Maximum planned risk</dt><dd id="risk-value">—</dd></div>
+    <div><dt>Potential reward</dt><dd id="reward">—</dd></div>
+    <div><dt>Position value</dt><dd id="notional">—</dd></div>
+  </dl>
+  <p id="warning" hidden></p>
+</section>
+</div>
+<footer>Market data may be delayed. Stops do not guarantee execution at the stop price. Gaps, spreads, slippage and fees can increase losses. Confirm prices and contract specifications with your broker.</footer>
+</main>
+<script>
+(() => {
+"use strict";
+const $ = id => document.getElementById(id);
+const symbol = $("symbol"), suggestions = $("suggestions"), status = $("status");
+const fields = ["equity","risk","rr","timeframe"].map($);
+let direction = "LONG", searchTimer, calcTimer, searchAbort, calcAbort, searchSeq = 0, calcSeq = 0;
+let matches = [], active = -1;
+const money = n => new Intl.NumberFormat("en-US",{style:"currency",currency:"USD",maximumFractionDigits:2}).format(n);
+const price = n => "$" + Number(n).toLocaleString("en-US",{maximumFractionDigits:8});
+const qtyFmt = new Intl.NumberFormat("en-US",{maximumFractionDigits:6});
+function setStatus(text,error=false){status.textContent=text;status.classList.toggle("error",error)}
+function showError(message){setStatus(message,true);$("quantity").textContent="—";$("unit").textContent="";["entry","stop","target","risk-value","reward","notional"].forEach(id=>$(id).textContent="—");$("warning").hidden=true}
+function render(d){
+ $("result-symbol").textContent=d.symbol;
+ $("quantity").textContent=qtyFmt.format(d.quantity);
+ $("unit").textContent=d.unit;
+ $("entry").textContent=price(d.entry);
+ $("stop").textContent=price(d.stop);
+ $("target").textContent=price(d.target);
+ $("risk-value").textContent=money(d.risk_at_size);
+ $("reward").textContent=money(d.reward_at_target);
+ $("notional").textContent=money(d.notional);
+ $("warning").textContent=(d.warnings||[]).join(" ");
+ $("warning").hidden=!(d.warnings||[]).length;
+ setStatus("Updated "+new Date(d.priced_at).toLocaleTimeString([], {hour:"numeric",minute:"2-digit"}));
+}
+function scheduleCalc(delay=250){clearTimeout(calcTimer);calcTimer=setTimeout(calculate,delay)}
+async function calculate(){
+ const seq=++calcSeq;calcAbort?.abort();
+ const payload={symbol:symbol.value.trim().toUpperCase(),direction,equity:Number($("equity").value),risk_pct:Number($("risk").value),rr:Number($("rr").value),timeframe:$("timeframe").value};
+ if(!payload.symbol){showError("Enter a symbol.");return}
+ if(!(payload.equity>0)){showError("Enter valid account equity.");return}
+ if(!(payload.risk_pct>0&&payload.risk_pct<=100)){showError("Risk must be greater than 0 and no more than 100%.");return}
+ if(!(payload.rr>0&&payload.rr<=100)){showError("Enter a valid reward-to-risk multiple.");return}
+ calcAbort=new AbortController();setStatus("Calculating…");
+ try{
+  const response=await fetch("/api/calc",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(payload),signal:calcAbort.signal});
+  const data=await response.json().catch(()=>({}));
+  if(seq!==calcSeq)return;
+  if(!response.ok){showError(typeof data.detail==="string"?data.detail:"Unable to calculate this position.");return}
+  render(data);
+ }catch(e){if(e.name!=="AbortError"&&seq===calcSeq)showError("Market data unavailable. Try again.");}
+}
+function closeSuggestions(){clearTimeout(searchTimer);searchAbort?.abort();suggestions.hidden=true;suggestions.replaceChildren();symbol.setAttribute("aria-expanded","false");symbol.removeAttribute("aria-activedescendant");matches=[];active=-1}
+function drawSuggestions(items){
+ matches=items;active=-1;suggestions.replaceChildren();
+ if(!items.length){closeSuggestions();return}
+ for(let i=0;i<items.length;i++){
+  const li=document.createElement("li");li.id="symbol-option-"+i;li.role="option";li.setAttribute("aria-selected","false");li.dataset.index=i;
+  const sym=document.createElement("span");sym.className="s-symbol";sym.textContent=items[i].symbol;
+  const name=document.createElement("span");name.className="s-name";name.textContent=items[i].name||"";
+  li.append(sym,name);suggestions.append(li);
+ }
+ suggestions.hidden=false;symbol.setAttribute("aria-expanded","true");
+}
+async function searchSymbols(query,seq){
+ searchAbort?.abort();searchAbort=new AbortController();
+ try{
+  const response=await fetch("/api/search?q="+encodeURIComponent(query),{signal:searchAbort.signal});
+  if(!response.ok)throw Error("search failed");
+  const items=await response.json();
+  if(seq===searchSeq)drawSuggestions(items);
+ }catch(e){if(e.name!=="AbortError"&&seq===searchSeq)closeSuggestions()}
+}
+function onSymbolInput(){
+ clearTimeout(searchTimer);const seq=++searchSeq;searchAbort?.abort();
+ const query=symbol.value.trim().toUpperCase();
+ if(!query){closeSuggestions();return}
+ // Every keystroke searches the full prefix: A -> AA -> AAP, etc.
+ searchTimer=setTimeout(()=>searchSymbols(query,seq),100);
+}
+function choose(i){if(!matches[i])return;symbol.value=matches[i].symbol;closeSuggestions();scheduleCalc(0)}
+function moveActive(step){
+ if(!matches.length)return;active=active<0?(step>0?0:matches.length-1):(active+step+matches.length)%matches.length;
+ [...suggestions.children].forEach((el,i)=>el.setAttribute("aria-selected",String(i===active)));
+ symbol.setAttribute("aria-activedescendant","symbol-option-"+active);
+ suggestions.children[active].scrollIntoView({block:"nearest"});
+}
+symbol.addEventListener("input",onSymbolInput);
+symbol.addEventListener("keydown",e=>{
+ if(e.key==="ArrowDown"&&!suggestions.hidden){e.preventDefault();moveActive(1)}
+ else if(e.key==="ArrowUp"&&!suggestions.hidden){e.preventDefault();moveActive(-1)}
+ else if(e.key==="Escape")closeSuggestions();
+ else if(e.key==="Enter"){e.preventDefault();if(!suggestions.hidden&&active>=0)choose(active);else{closeSuggestions();scheduleCalc(0)}}
+});
+symbol.addEventListener("change",()=>{closeSuggestions();scheduleCalc(0)});
+suggestions.addEventListener("pointerdown",e=>{const li=e.target.closest("li[data-index]");if(li){e.preventDefault();choose(Number(li.dataset.index))}});
+document.addEventListener("pointerdown",e=>{if(!e.target.closest(".symbol-wrap"))closeSuggestions()});
+["equity","risk","rr","timeframe"].forEach(id=>$(id).addEventListener("input",()=>scheduleCalc()));
+document.querySelectorAll("[data-side]").forEach(btn=>btn.addEventListener("click",()=>{
+ direction=btn.dataset.side;
+ $("direction").dataset.dir=direction;
+ document.querySelectorAll("[data-side]").forEach(b=>b.setAttribute("aria-pressed",String(b===btn)));
+ scheduleCalc(0);
+}));
+let lastFocusTyping=false;
+setInterval(()=>{
+ const typing=document.activeElement&&document.activeElement.matches("input,select");
+ if(!document.hidden&&!typing)calculate();
+},20000);
+calculate();
+})();
+</script>
+</body>
+</html>
