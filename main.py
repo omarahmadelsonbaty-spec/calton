@@ -256,6 +256,7 @@ class CalcRequest(BaseModel):
     risk_pct: float = Field(gt=0, le=100)
     rr: float = Field(gt=0, le=100)
     timeframe: str = "1d"
+    entry_price: Optional[float] = Field(default=None, gt=0)
 
 def build_plan(symbol: str, quote: Quote, req: CalcRequest, bars) -> dict:
     kind = instrument_kind(symbol)
@@ -266,8 +267,9 @@ def build_plan(symbol: str, quote: Quote, req: CalcRequest, bars) -> dict:
 
     multiplier = FUTURES_MULTIPLIERS.get(symbol, 1.0)
     sign = 1 if req.direction == "LONG" else -1
-    dp = price_decimals(quote.price)
-    entry = round(quote.price, dp)
+    base_price = req.entry_price if req.entry_price is not None else quote.price
+    dp = price_decimals(base_price)
+    entry = round(base_price, dp)
 
     atr = wilder_atr(bars)
     if atr is None:

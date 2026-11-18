@@ -24,6 +24,7 @@ label{font-size:11px;font-weight:650;letter-spacing:.08em;color:var(--muted);tex
 .control{display:flex;align-items:center;gap:8px;border-bottom:1px solid #aaa;padding:0 0 9px;min-height:42px}
 .control:focus-within{border-bottom:2px solid var(--ink)}
 input,select{width:100%;min-width:0;border:0;outline:0;background:transparent;color:var(--ink);font:500 18px inherit;font-size:18px;font-variant-numeric:tabular-nums}
+input::placeholder{color:#b0b0aa;font-weight:400}
 input[type=number]{appearance:textfield}input::-webkit-inner-spin-button,input::-webkit-outer-spin-button{-webkit-appearance:none;margin:0}
 .prefix,.suffix{color:var(--muted);white-space:nowrap}
 .grid2{display:grid;grid-template-columns:1fr 1fr;gap:24px}
@@ -34,7 +35,7 @@ input[type=number]{appearance:textfield}input::-webkit-inner-spin-button,input::
 #suggestions li{padding:10px 12px;display:flex;justify-content:space-between;gap:14px;cursor:pointer}
 #suggestions li:hover,#suggestions li[aria-selected=true]{background:#f0f0ed}
 .s-symbol{font-weight:650}.s-name{color:var(--muted);font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.hint{margin:0;color:var(--muted);font-size:12px}
+.hint{margin:0;color:var(--muted);font-size:12px;line-height:1.4}
 .result{border-left:1px solid var(--line);padding-left:36px;min-width:0}
 .result-head{display:flex;justify-content:space-between;gap:12px;align-items:center;border-bottom:1px solid var(--line);padding-bottom:16px}
 #result-symbol{font-size:13px;font-weight:700;letter-spacing:.05em}
@@ -75,6 +76,11 @@ button:focus-visible,input:focus-visible,select:focus-visible{outline:2px solid 
     </div>
     <p class="hint">Type a ticker or paste a TradingView / chart link.</p>
   </div>
+  <div class="field">
+    <label for="custom-entry">Entry price (optional)</label>
+    <div class="control"><span class="prefix">$</span><input id="custom-entry" type="number" min=".00000001" step="any" placeholder="Market price"></div>
+    <p class="hint">Leave blank or unchanged to execute on the current market price.</p>
+  </div>
   <div class="grid2">
     <div class="field"><label for="equity">Account equity</label><div class="control"><span class="prefix">$</span><input id="equity" type="number" min=".01" step="any" value="10000"></div></div>
     <div class="field"><label for="risk">Risk per trade</label><div class="control"><input id="risk" type="number" min=".01" max="100" step="any" value="1"><span class="suffix">%</span></div></div>
@@ -105,7 +111,7 @@ button:focus-visible,input:focus-visible,select:focus-visible{outline:2px solid 
 (() => {
 "use strict";
 const $ = id => document.getElementById(id);
-const symbol = $("symbol"), suggestions = $("suggestions"), status = $("status");
+const symbol = $("symbol"), customEntry = $("custom-entry"), suggestions = $("suggestions"), status = $("status");
 let direction = "LONG", searchTimer, calcTimer, searchAbort, calcAbort, searchSeq = 0, calcSeq = 0;
 let matches = [], active = -1;
 
@@ -113,7 +119,6 @@ const EXCHANGES = new Set(["NASDAQ", "NYSE", "AMEX", "ARCA", "BATS", "CBOE", "OT
 const TRADFI_TICKERS = new Set(["SPY", "QQQ", "DIA", "IWM", "AAPL", "MSFT", "NVDA", "AMD", "AMZN", "META", "TSLA"]);
 const INDEX_ALIASES = { SPX: "^GSPC", SPX500: "^GSPC", US500: "^GSPC", NAS100: "^NDX", US100: "^NDX", US30: "^DJI", VIX: "^VIX", GOLD: "GC=F", USOIL: "CL=F" };
 const TV_INTERVALS = { "1": "1m", "5": "5m", "15": "15m", "30": "30m", "60": "1h", "240": "4h", "D": "1d", "1D": "1d", "W": "1w", "1W": "1w" };
-const IGNORE_WORDS = new Set(["BYBIT", "BINANCE", "TRADINGVIEW", "YAHOO", "CHART", "TRADE", "SPOT", "PERP"]);
 
 function looksLikeLink(text) {
   const t = String(text).trim();
@@ -138,7 +143,7 @@ function normalizeSymbol(input) {
     const base = m[1];
     if (INDEX_ALIASES[base]) return INDEX_ALIASES[base];
     if (TRADFI_TICKERS.has(base)) return base;
-    return m[2] === "USD" ? `${base}-USD` : `${base}-USD`;
+    return `${base}-USD`;
   }
   return s;
 }
@@ -211,7 +216,26 @@ async function calculate(){
    }
  }
 
- const payload={symbol:normalizeSymbol(targetSymbol),direction,equity:Number($("equity").value),risk_pct:Number($("risk").value),rr:Number($("rr").value),timeframe:$("timeframe").value};
+ const entryVal = customEntry.value.trim();
+ const parsedEntry = entryVal ? Number(entryVal) : null;
+
+ const payload={
+   symbol:normalizeSymbol(targetSymbol),
+   direction,
+   equity:Number($("equity").value),
+   risk_pct:Number($("risk").value),
+   rr:Number($("rr").value),
+   timeframe:$("timeframe").value
+ };
+
+ if (parsedEntry !== null) {
+   if (!(parsedEntry > 0)) {
+     showError("Entry price must be greater than 0.");
+     return;
+   }
+   payload.entry_price = parsedEntry;
+ }
+
  if(!payload.symbol){showError("Enter a symbol or link.");return}
  if(!(payload.equity>0)){showError("Enter valid account equity.");return}
  if(!(payload.risk_pct>0&&payload.risk_pct<=100)){showError("Risk must be greater than 0 and no more than 100%.");return}
@@ -260,7 +284,7 @@ function onSymbolInput(){
  scheduleCalc();
 }
 
-function choose(i){if(!matches[i])return;symbol.value=matches[i].symbol;closeSuggestions();scheduleCalc(0)}
+function choose(i){if(!matches[i])return;symbol.value=matches[i].symbol;customEntry.value="";closeSuggestions();scheduleCalc(0)}
 
 function moveActive(step){
  if(!matches.length)return;active=active<0?(step>0?0:matches.length-1):(active+step+matches.length)%matches.length;
@@ -280,7 +304,7 @@ symbol.addEventListener("change",()=>{closeSuggestions();scheduleCalc(0)});
 suggestions.addEventListener("pointerdown",e=>{const li=e.target.closest("li[data-index]");if(li){e.preventDefault();choose(Number(li.dataset.index))}});
 document.addEventListener("pointerdown",e=>{if(!e.target.closest(".symbol-wrap"))closeSuggestions()});
 
-["equity","risk","rr","timeframe"].forEach(id=>$(id).addEventListener("input",()=>scheduleCalc()));
+["custom-entry","equity","risk","rr","timeframe"].forEach(id=>$(id).addEventListener("input",()=>scheduleCalc()));
 $("timeframe").addEventListener("change",()=>scheduleCalc(0));
 
 document.querySelectorAll("[data-side]").forEach(btn=>btn.addEventListener("click",()=>{
