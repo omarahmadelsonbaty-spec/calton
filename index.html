@@ -2,66 +2,296 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>trade calculator</title>
+<title>Trade Calculator - Position & Risk Engine v1.0</title>
 <meta name="description" content="Position size, automatic stop loss and target from account risk.">
 <style>
-:root{color-scheme:light;--bg:#fafaf9;--paper:#fff;--ink:#171717;--muted:#777;--line:#e5e5e2;--green:#087b55;--red:#c43c32;--focus:#245f9e;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
-*{box-sizing:border-box}
-body{margin:0;background:var(--bg);color:var(--ink);font-size:15px;-webkit-font-smoothing:antialiased}
-main{width:min(900px,100%);margin:auto;padding:54px 32px 36px}
-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:48px}
-h1{font-size:25px;letter-spacing:-.06em;font-weight:650;margin:0}
-.layout{display:grid;grid-template-columns:minmax(0,.9fr) minmax(0,1.1fr);gap:64px;align-items:start}
-.inputs{display:grid;gap:28px;min-width:0}
-.direction{display:flex;gap:22px;border-bottom:1px solid var(--line)}
-.direction button{background:none;border:0;padding:0 0 11px;color:var(--muted);font:600 14px inherit;cursor:pointer;position:relative}
-.direction button[aria-pressed=true]{color:var(--ink)}
-.direction button[aria-pressed=true]::after{content:"";position:absolute;bottom:-1px;left:0;right:0;height:2px;background:var(--accent)}
-.direction[data-dir=LONG]{--accent:var(--green)}.direction[data-dir=SHORT]{--accent:var(--red)}
-.field{display:grid;gap:8px;min-width:0}
-label{font-size:11px;font-weight:650;letter-spacing:.08em;color:var(--muted);text-transform:uppercase}
-.control{display:flex;align-items:center;gap:8px;border-bottom:1px solid #aaa;padding:0 0 9px;min-height:42px}
-.control:focus-within{border-bottom:2px solid var(--ink)}
-input,select{width:100%;min-width:0;border:0;outline:0;background:transparent;color:var(--ink);font:500 18px inherit;font-size:18px;font-variant-numeric:tabular-nums}
-input::placeholder{color:#b0b0aa;font-weight:400}
-input[type=number]{appearance:textfield}input::-webkit-inner-spin-button,input::-webkit-outer-spin-button{-webkit-appearance:none;margin:0}
-.prefix,.suffix{color:var(--muted);white-space:nowrap}
-.grid2{display:grid;grid-template-columns:1fr 1fr;gap:24px}
-.symbol-wrap{position:relative}
-#symbol{font-weight:650;text-transform:uppercase;letter-spacing:.04em}
-#suggestions{position:absolute;z-index:5;top:calc(100% + 4px);left:0;right:0;max-height:260px;overflow:auto;margin:0;padding:4px 0;list-style:none;background:#fff;border:1px solid var(--line);box-shadow:0 8px 24px #0000000d}
-#suggestions[hidden]{display:none}
-#suggestions li{padding:10px 12px;display:flex;justify-content:space-between;gap:14px;cursor:pointer}
-#suggestions li:hover,#suggestions li[aria-selected=true]{background:#f0f0ed}
-.s-symbol{font-weight:650}.s-name{color:var(--muted);font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.hint{margin:0;color:var(--muted);font-size:12px;line-height:1.4}
-.result{border-left:1px solid var(--line);padding-left:36px;min-width:0}
-.result-head{display:flex;justify-content:space-between;gap:12px;align-items:center;border-bottom:1px solid var(--line);padding-bottom:16px}
-#result-symbol{font-size:13px;font-weight:700;letter-spacing:.05em}
-#status{font-size:12px;color:var(--muted);text-align:right}
-#status.error{color:var(--red)}
-.big{margin:28px 0 24px}
-.big-label{color:var(--muted);font-size:11px;font-weight:650;letter-spacing:.08em}
-#quantity{font-size:clamp(58px,8vw,86px);line-height:1;letter-spacing:-.08em;font-weight:550;overflow-wrap:anywhere;font-variant-numeric:tabular-nums}
-#unit{color:var(--muted);font-size:13px;margin-left:8px}
-.rows{margin:0}
-.rows div{display:flex;justify-content:space-between;align-items:baseline;gap:16px;padding:13px 0;border-top:1px solid var(--line)}
-.rows div:last-child{border-bottom:1px solid var(--line)}
-dt{color:var(--muted);font-size:13px}dd{margin:0;font-size:14px;font-weight:600;text-align:right;font-variant-numeric:tabular-nums}
-.broker-action{margin:24px 0 0}
-.broker-btn{width:100%;padding:13px;border:0;border-radius:6px;background:var(--ink);color:#fff;font:inherit;font-size:13px;font-weight:650;letter-spacing:.03em;cursor:pointer;transition:opacity .15s ease}
-.broker-btn:hover{opacity:.88}
-#warning{font-size:12px;color:var(--red);line-height:1.5;margin:15px 0 0}
-footer{margin-top:48px;padding-top:15px;border-top:1px solid var(--line);font-size:11px;color:var(--muted);line-height:1.5}
-button:focus-visible,input:focus-visible,select:focus-visible{outline:2px solid var(--focus);outline-offset:3px}
-@media(max-width:700px){main{padding:32px 22px}.layout{grid-template-columns:1fr;gap:38px}header{margin-bottom:34px}.result{border-left:0;border-top:1px solid var(--line);padding:26px 0 0}.grid2{gap:20px}}
-@media(max-width:380px){.grid2{grid-template-columns:1fr}}
+/* 2010 Web 2.0 Classic Styling */
+body {
+    margin: 0;
+    padding: 0;
+    background: #f0f0f0 url('data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAAiCAYAAAA6xPJAAAAANElEQVQYV2NkYGAwZGBgYGJgYGBkY2MzAAL/MDAwMP//M4AzAv///2dgYGBgYGZgZAAAAAElFTkSuQmCC') repeat-x top;
+    color: #333333;
+    font-family: Arial, Tahoma, Verdana, sans-serif;
+    font-size: 13px;
+    line-height: 1.4;
+}
+main {
+    width: 860px;
+    margin: 30px auto;
+    background: #ffffff;
+    border: 1px solid #cccccc;
+    box-shadow: 0 2px 6px rgba(0,0,0,0.15);
+    -webkit-box-shadow: 0 2px 6px rgba(0,0,0,0.15);
+    -moz-box-shadow: 0 2px 6px rgba(0,0,0,0.15);
+    padding: 25px 30px;
+}
+header {
+    border-bottom: 2px solid #dddddd;
+    padding-bottom: 12px;
+    margin-bottom: 25px;
+}
+h1 {
+    font-size: 22px;
+    font-weight: bold;
+    color: #222222;
+    margin: 0;
+    text-shadow: 1px 1px 0px #ffffff;
+}
+.layout {
+    display: table;
+    width: 100%;
+    table-layout: fixed;
+}
+.inputs, .result {
+    display: table-cell;
+    vertical-align: top;
+    padding: 0 15px;
+}
+.inputs {
+    width: 45%;
+    border-right: 1px solid #e0e0e0;
+    padding-left: 0;
+}
+.result {
+    width: 55%;
+    padding-right: 0;
+}
+.direction {
+    margin-bottom: 15px;
+    border-bottom: 1px solid #cccccc;
+    padding-bottom: 8px;
+}
+.direction button {
+    background: #e6e6e6;
+    border: 1px solid #adadad;
+    padding: 6px 16px;
+    color: #333333;
+    font: bold 12px Arial, sans-serif;
+    cursor: pointer;
+    margin-right: 5px;
+}
+.direction button[aria-pressed=true] {
+    background: #4f81bd;
+    color: #ffffff;
+    border-color: #38608b;
+}
+.direction[data-dir=LONG] button[aria-pressed=true] {
+    background: #2ca02c;
+    border-color: #1f6f1f;
+}
+.direction[data-dir=SHORT] button[aria-pressed=true] {
+    background: #d62728;
+    border-color: #9c1c1d;
+}
+.field {
+    margin-bottom: 14px;
+}
+label {
+    display: block;
+    font-size: 11px;
+    font-weight: bold;
+    color: #555555;
+    margin-bottom: 4px;
+    text-transform: uppercase;
+}
+.control {
+    display: flex;
+    align-items: center;
+    background: #ffffff;
+    border: 1px solid #b8b8b8;
+    box-shadow: inset 1px 1px 2px rgba(0,0,0,0.08);
+    padding: 4px 8px;
+    height: 28px;
+}
+.control:focus-within {
+    border-color: #38608b;
+    box-shadow: inset 1px 1px 2px rgba(0,0,0,0.1), 0 0 3px rgba(56,96,139,0.5);
+}
+input, select {
+    width: 100%;
+    border: 0;
+    outline: 0;
+    background: transparent;
+    color: #000000;
+    font: 13px Arial, sans-serif;
+}
+.prefix, .suffix {
+    color: #777777;
+    font-weight: bold;
+    font-size: 12px;
+}
+.grid2 {
+    display: table;
+    width: 100%;
+}
+.grid2 .field {
+    display: table-cell;
+    width: 50%;
+    padding-right: 10px;
+}
+.grid2 .field:last-child {
+    padding-right: 0;
+}
+.symbol-wrap {
+    position: relative;
+}
+#symbol {
+    font-weight: bold;
+    text-transform: uppercase;
+}
+#suggestions {
+    position: absolute;
+    z-index: 10;
+    top: 100%;
+    left: 0;
+    right: 0;
+    max-height: 200px;
+    overflow-y: auto;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+    background: #ffffff;
+    border: 1px solid #7f9db9;
+    box-shadow: 0 3px 6px rgba(0,0,0,0.2);
+}
+#suggestions[hidden] {
+    display: none;
+}
+#suggestions li {
+    padding: 6px 10px;
+    display: flex;
+    justify-content: space-between;
+    cursor: pointer;
+    border-bottom: 1px solid #f0f0f0;
+}
+#suggestions li:hover, #suggestions li[aria-selected=true] {
+    background: #38608b;
+    color: #ffffff;
+}
+#suggestions li:hover .s-name, #suggestions li[aria-selected=true] .s-name {
+    color: #e0e0e0;
+}
+.s-symbol {
+    font-weight: bold;
+}
+.s-name {
+    color: #666666;
+    font-size: 11px;
+}
+.hint {
+    margin: 3px 0 0;
+    color: #777777;
+    font-size: 11px;
+    font-style: italic;
+}
+.result-head {
+    background: #eef2f7;
+    border: 1px solid #b8cddc;
+    padding: 8px 12px;
+    display: flex;
+    justify-content: space-between;
+    font-weight: bold;
+    margin-bottom: 15px;
+}
+#result-symbol {
+    color: #1e395b;
+}
+#status {
+    font-size: 11px;
+    color: #555555;
+    font-weight: normal;
+}
+#status.error {
+    color: #cc0000;
+    font-weight: bold;
+}
+.big {
+    background: #fafafa;
+    border: 1px solid #dddddd;
+    padding: 12px;
+    text-align: center;
+    margin-bottom: 15px;
+}
+.big-label {
+    font-size: 11px;
+    font-weight: bold;
+    color: #666666;
+    margin-bottom: 4px;
+}
+#quantity {
+    font-size: 32px;
+    font-weight: bold;
+    color: #222222;
+}
+#unit {
+    color: #555555;
+    font-size: 12px;
+    font-weight: bold;
+    margin-left: 4px;
+}
+.rows {
+    width: 100%;
+    border-collapse: collapse;
+    margin-bottom: 15px;
+}
+.rows div {
+    display: flex;
+    justify-content: space-between;
+    padding: 6px 8px;
+    border-bottom: 1px solid #e5e5e5;
+}
+.rows div:nth-child(even) {
+    background: #f9f9f9;
+}
+dt {
+    color: #444444;
+    font-size: 12px;
+}
+dd {
+    margin: 0;
+    font-size: 12px;
+    font-weight: bold;
+    color: #111111;
+}
+.broker-action {
+    margin-top: 15px;
+}
+.broker-btn {
+    width: 100%;
+    padding: 8px;
+    background: linear-gradient(to bottom, #fcfcfc 0%, #e0e0e0 100%);
+    background-color: #e0e0e0;
+    border: 1px solid #adadad;
+    color: #333333;
+    font: bold 12px Arial, sans-serif;
+    cursor: pointer;
+    text-align: center;
+}
+.broker-btn:hover {
+    background: linear-gradient(to bottom, #ffffff 0%, #eaeaea 100%);
+    border-color: #888888;
+}
+#warning {
+    font-size: 11px;
+    color: #cc0000;
+    background: #ffcccc;
+    border: 1px solid #ff9999;
+    padding: 6px;
+    margin-top: 10px;
+}
+footer {
+    margin-top: 25px;
+    padding-top: 10px;
+    border-top: 1px solid #dddddd;
+    font-size: 10px;
+    color: #777777;
+    text-align: center;
+}
 </style>
 </head>
 <body>
 <main>
-<header><h1>Position Engine</h1></header>
+<header><h1>Position Engine v1.0</h1></header>
 <div class="layout">
 <section class="inputs" aria-label="Trade inputs">
   <div class="direction" id="direction" data-dir="LONG" role="group" aria-label="Direction">
@@ -74,23 +304,28 @@ button:focus-visible,input:focus-visible,select:focus-visible{outline:2px solid 
       <div class="control"><input id="symbol" value="AAPL" autocomplete="off" autocapitalize="characters" spellcheck="false" role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="suggestions"></div>
       <ul id="suggestions" role="listbox" hidden></ul>
     </div>
-    <p class="hint">Type a ticker or paste a TradingView / chart link.</p>
+    <p class="hint">Type a ticker symbol or paste chart link.</p>
   </div>
   <div class="field">
     <label for="custom-entry">Entry price (optional)</label>
     <div class="control"><span class="prefix">$</span><input id="custom-entry" type="number" min=".00000001" step="any" placeholder="Market price"></div>
-    <p class="hint">Leave blank or unchanged to execute on the current market price.</p>
+    <p class="hint">Leave blank to execute on current market price.</p>
   </div>
   <div class="grid2">
     <div class="field"><label for="equity">Account equity</label><div class="control"><span class="prefix">$</span><input id="equity" type="number" min=".01" step="any" value="10000"></div></div>
     <div class="field"><label for="risk">Risk per trade</label><div class="control"><input id="risk" type="number" min=".01" max="100" step="any" value="1"><span class="suffix">%</span></div></div>
+  </div>
+  <div class="grid2">
     <div class="field"><label for="rr">Take profit</label><div class="control"><input id="rr" type="number" min=".01" max="100" step="any" value="2"><span class="suffix">R</span></div></div>
     <div class="field"><label for="timeframe">Timeframe</label><div class="control"><select id="timeframe"><option value="1m">1 minute</option><option value="5m">5 minutes</option><option value="15m">15 minutes</option><option value="30m">30 minutes</option><option value="1h">1 hour</option><option value="4h">4 hours</option><option value="1d" selected>Daily</option><option value="1w">Weekly</option></select></div></div>
   </div>
 </section>
 <section class="result" id="result" aria-label="Position calculation">
   <div class="result-head"><span id="result-symbol">AAPL</span><span id="status" aria-live="polite">Calculating…</span></div>
-  <div class="big"><div class="big-label">POSITION SIZE</div><span id="quantity">—</span><span id="unit"></span></div>
+  <div class="big">
+    <div class="big-label">POSITION SIZE</div>
+    <span id="quantity">—</span><span id="unit"></span>
+  </div>
   <dl class="rows">
     <div><dt>Entry</dt><dd id="entry">—</dd></div>
     <div><dt>Stop loss</dt><dd id="stop">—</dd></div>
@@ -105,7 +340,7 @@ button:focus-visible,input:focus-visible,select:focus-visible{outline:2px solid 
   <p id="warning" hidden></p>
 </section>
 </div>
-<footer>Market data may be delayed. Stops do not guarantee execution at the stop price. Gaps, spreads, slippage and fees can increase losses. Confirm prices and contract specifications with your broker.</footer>
+<footer>Market data delayed. Stops do not guarantee execution at stop price. Gaps, spreads, slippage and fees apply.</footer>
 </main>
 <script>
 (() => {
