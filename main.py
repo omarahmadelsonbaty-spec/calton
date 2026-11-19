@@ -1,11 +1,11 @@
 """Position Engine API.
 
-Automatic stop = recent swing extreme +/- ATR buffer (with universal percentage fallback).
-Position size is then derived from account equity and risk.
+First-principles sizing:
+1. Risk budget ($) = Equity * (Risk % / 100)
+2. Risk per unit ($) = |Entry - Stop| * Contract Multiplier
+3. Position size = floor(Risk budget / Risk per unit) (or 6 decimals for crypto)
 
-Data source: Yahoo Finance via yfinance. Quotes can be delayed. This is a
-calculator, not an execution venue. Instrument sizing is deliberately limited
-to instruments whose contract multiplier is known below.
+Data source: Yahoo Finance via yfinance. Quotes and bars can be delayed.
 """
 import asyncio
 import logging
@@ -21,6 +21,7 @@ from pathlib import Path
 from typing import Literal, Optional
 
 import httpx
+import pandas as pd
 import yfinance as yf
 from fastapi import FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
@@ -39,6 +40,7 @@ QUOTE_TTL_SECONDS = 8.0
 ATR_PERIOD = 14
 SWING_LOOKBACK = 20
 ATR_BUFFER = 0.20
+DEFAULT_STOP_PCT = 0.015
 
 TIMEFRAMES = {
     "1m": ("5d", "1m", "1-minute", 60),
@@ -58,18 +60,28 @@ NASDAQ_DIRECTORIES = (
     ("https://www.nasdaqtrader.com/dynamic/SymDir/otherlisted.txt", "ACT Symbol"),
 )
 CORE_TICKERS = {
-    "AAPL": "Apple Inc.", "AMZN": "Amazon.com Inc.", "AMD": "Advanced Micro Devices",
-    "BTC-USD": "Bitcoin / US Dollar", "ETH-USD": "Ethereum / US Dollar",
-    "SOL-USD": "Solana / US Dollar", "EURUSD=X": "Euro / US Dollar",
-    "GBPUSD=X": "British Pound / US Dollar",
-    "ES=F": "E-mini S&P 500 Futures", "MES=F": "Micro E-mini S&P 500 Futures",
-    "NQ=F": "E-mini Nasdaq-100 Futures", "MNQ=F": "Micro E-mini Nasdaq-100 Futures",
-    "RTY=F": "E-mini Russell 2000 Futures", "M2K=F": "Micro E-mini Russell 2000 Futures",
-    "YM=F": "E-mini Dow Futures", "MYM=F": "Micro E-mini Dow Futures",
-    "CL=F": "Crude Oil WTI Futures", "MCL=F": "Micro WTI Crude Oil Futures",
-    "GC=F": "Gold Futures", "MGC=F": "Micro Gold Futures", "SI=F": "Silver Futures",
+    "SPY": "SPDR S&P 500 ETF Trust",
+    "QQQ": "Invesco QQQ Trust",
+    "AAPL": "Apple Inc.",
+    "AMZN": "Amazon.com Inc.",
+    "AMD": "Advanced Micro Devices",
+    "BTC-USD": "Bitcoin / US Dollar",
+    "ETH-USD": "Ethereum / US Dollar",
+    "SOL-USD": "Solana / US Dollar",
+    "ES=F": "E-mini S&P 500 Futures",
+    "MES=F": "Micro E-mini S&P 500 Futures",
+    "NQ=F": "E-mini Nasdaq-100 Futures",
+    "MNQ=F": "Micro E-mini Nasdaq-100 Futures",
+    "RTY=F": "E-mini Russell 2000 Futures",
+    "M2K=F": "Micro E-mini Russell 2000 Futures",
+    "YM=F": "E-mini Dow Futures",
+    "MYM=F": "Micro E-mini Dow Futures",
+    "CL=F": "Crude Oil WTI Futures",
+    "MCL=F": "Micro WTI Crude Oil Futures",
+    "GC=F": "Gold Futures",
+    "MGC=F": "Micro Gold Futures",
+    "SI=F": "Silver Futures",
 }
-# Dollar P/L multiplier per 1.0 price move. Unsupported futures are rejected.
 FUTURES_MULTIPLIERS = {
     "ES=F": 50.0, "MES=F": 5.0, "NQ=F": 20.0, "MNQ=F": 2.0,
     "RTY=F": 50.0, "M2K=F": 5.0, "YM=F": 5.0, "MYM=F": 0.5,
@@ -78,6 +90,7 @@ FUTURES_MULTIPLIERS = {
 }
 CRYPTO_SUFFIXES = ("-USD",)
 UNIT_NAMES = {"equity": "shares", "future": "contracts", "crypto": "units"}
+
 
 def instrument_kind(symbol: str) -> str:
     if symbol.endswith("=F"):
@@ -88,8 +101,10 @@ def instrument_kind(symbol: str) -> str:
         return "fx"
     return "equity"
 
-_tickers = [{"symbol": s, "name": n} for s, n in CORE_TICKERS.items()]
+
+_tickers = [{"symbol": s, "name": n} for s, n in sorted(CORE_TICKERS.items())]
 _tickers_ready = False
+
 
 def parse_symbol_directory(raw: str, symbol_column: str) -> dict[str, str]:
     lines = raw.splitlines()
@@ -110,12 +125,16 @@ def parse_symbol_directory(raw: str, symbol_column: str) -> dict[str, str]:
             found[symbol] = parts[ni].strip()
     return found
 
+
 async def load_tickers() -> bool:
     global _tickers, _tickers_ready
     merged = dict(CORE_TICKERS)
     complete = True
-    async with httpx.AsyncClient(timeout=20, follow_redirects=True,
-                                 headers={"User-Agent": "Mozilla/5.0 PositionEngine"}) as client:
+    async with httpx.AsyncClient(
+        timeout=20,
+        follow_redirects=True,
+        headers={"User-Agent": "Mozilla/5.0 PositionEngine"},
+    ) as client:
         for url, col in NASDAQ_DIRECTORIES:
             try:
                 response = await client.get(url)
@@ -129,6 +148,7 @@ async def load_tickers() -> bool:
     _tickers_ready = True
     return complete
 
+
 async def ticker_refresh_loop():
     while True:
         try:
@@ -136,6 +156,7 @@ async def ticker_refresh_loop():
         except Exception:
             ok = False
         await asyncio.sleep(TICKER_REFRESH_SECONDS if ok else TICKER_RETRY_SECONDS)
+
 
 @asynccontextmanager
 async def lifespan(_app):
@@ -145,11 +166,13 @@ async def lifespan(_app):
     finally:
         task.cancel()
 
+
 class TTLCache:
     def __init__(self, max_items=5000):
         self.data = {}
         self.lock = threading.Lock()
         self.max_items = max_items
+
     def get(self, key):
         with self.lock:
             item = self.data.get(key)
@@ -157,22 +180,70 @@ class TTLCache:
             return None
         expires, value = item
         return value if time.monotonic() < expires else None
+
     def set(self, key, value, ttl):
         with self.lock:
             if len(self.data) >= self.max_items:
                 self.data.clear()
             self.data[key] = (time.monotonic() + ttl, value)
 
+
+class SingleFlight:
+    """Coalesces identical in-flight fetches so concurrent misses don't stampede upstream."""
+
+    def __init__(self):
+        self._lock = threading.Lock()
+        self._events: dict[object, threading.Event] = {}
+        self._results: dict[object, tuple[bool, object]] = {}
+
+    def run(self, key, fn):
+        with self._lock:
+            if key in self._events:
+                event = self._events[key]
+                owner = False
+            else:
+                event = threading.Event()
+                self._events[key] = event
+                owner = True
+
+        if not owner:
+            event.wait()
+            ok, payload = self._results[key]
+            if ok:
+                return payload
+            raise payload
+
+        try:
+            value = fn()
+        except Exception as exc:
+            with self._lock:
+                self._results[key] = (False, exc)
+                self._events.pop(key, None)
+                event.set()
+            raise
+        else:
+            with self._lock:
+                self._results[key] = (True, value)
+                self._events.pop(key, None)
+                event.set()
+            return value
+
+
 _quote_cache = TTLCache()
 _bars_cache = TTLCache()
+_quote_flight = SingleFlight()
+_bars_flight = SingleFlight()
+
 
 class NoQuoteError(Exception):
     pass
+
 
 @dataclass(frozen=True)
 class Quote:
     price: float
     fetched_at: datetime
+
 
 def positive(value) -> Optional[float]:
     try:
@@ -180,6 +251,7 @@ def positive(value) -> Optional[float]:
     except (TypeError, ValueError):
         return None
     return value if math.isfinite(value) and value > 0 else None
+
 
 def fetch_quote(symbol: str) -> Quote:
     ticker = yf.Ticker(symbol)
@@ -198,16 +270,18 @@ def fetch_quote(symbol: str) -> Quote:
         raise NoQuoteError(symbol)
     return Quote(price, datetime.now(timezone.utc))
 
+
 def get_quote(symbol: str) -> Quote:
     cached = _quote_cache.get(symbol)
     if cached is not None:
         return cached
-    quote = fetch_quote(symbol)
+    quote = _quote_flight.run(("quote", symbol), lambda: fetch_quote(symbol))
     _quote_cache.set(symbol, quote, QUOTE_TTL_SECONDS)
     return quote
 
+
 def fetch_bars(symbol: str, timeframe: str):
-    period, interval, _label, ttl = TIMEFRAMES[timeframe]
+    period, interval, _label, _ttl = TIMEFRAMES[timeframe]
     hist = yf.Ticker(symbol).history(period=period, interval=interval, auto_adjust=False)
     if hist.empty:
         return None
@@ -215,29 +289,34 @@ def fetch_bars(symbol: str, timeframe: str):
     if timeframe == "4h":
         try:
             bars = bars.resample("4h", origin="start_day", offset="9h30min").agg(
-                {"High": "max", "Low": "min", "Close": "last"}).dropna()
+                {"High": "max", "Low": "min", "Close": "last"}
+            ).dropna()
         except Exception:
             return None
     if len(bars) < 2:
         return None
     return bars
 
+
 def get_bars(symbol: str, timeframe: str):
-    key = (symbol, timeframe)
+    key = ("bars", symbol, timeframe)
     cached = _bars_cache.get(key)
     if cached is not None:
         return cached
-    bars = fetch_bars(symbol, timeframe)
+    bars = _bars_flight.run(key, lambda: fetch_bars(symbol, timeframe))
     if bars is not None:
         _bars_cache.set(key, bars, TIMEFRAMES[timeframe][3])
     return bars
+
 
 def wilder_atr(bars, period=ATR_PERIOD) -> Optional[float]:
     if len(bars) < 2:
         return None
     highs, lows, closes = bars["High"].tolist(), bars["Low"].tolist(), bars["Close"].tolist()
-    trs = [max(highs[i] - lows[i], abs(highs[i] - closes[i-1]),
-               abs(lows[i] - closes[i-1])) for i in range(1, len(closes))]
+    trs = [
+        max(highs[i] - lows[i], abs(highs[i] - closes[i - 1]), abs(lows[i] - closes[i - 1]))
+        for i in range(1, len(closes))
+    ]
     if not trs:
         return None
     actual_period = min(period, len(trs))
@@ -246,11 +325,16 @@ def wilder_atr(bars, period=ATR_PERIOD) -> Optional[float]:
         atr = (atr * (actual_period - 1) + tr) / actual_period
     return positive(atr)
 
+
 def price_decimals(price: float) -> int:
-    if price >= 1000: return 2
-    if price >= 1: return 4
-    if price >= 0.01: return 6
+    if price >= 1000:
+        return 2
+    if price >= 1:
+        return 4
+    if price >= 0.01:
+        return 6
     return 8
+
 
 class CalcRequest(BaseModel):
     symbol: str = Field(min_length=1, max_length=20)
@@ -261,12 +345,13 @@ class CalcRequest(BaseModel):
     timeframe: str = "1d"
     entry_price: Optional[float] = Field(default=None, gt=0)
 
-def build_plan(symbol: str, quote: Quote, req: CalcRequest, bars) -> dict:
+
+def build_plan(symbol: str, quote: Quote, req: CalcRequest, bars, synthetic_bars: bool = False) -> dict:
     kind = instrument_kind(symbol)
     if kind == "future" and symbol not in FUTURES_MULTIPLIERS:
         raise HTTPException(400, f"Contract specification unavailable for {symbol}.")
     if kind == "fx":
-        raise HTTPException(400, "FX sizing is not enabled until account-currency conversion and lot specifications are available.")
+        raise HTTPException(400, "FX sizing is disabled until account-currency conversion and lot specifications are supported.")
 
     multiplier = FUTURES_MULTIPLIERS.get(symbol, 1.0)
     sign = 1 if req.direction == "LONG" else -1
@@ -276,7 +361,7 @@ def build_plan(symbol: str, quote: Quote, req: CalcRequest, bars) -> dict:
     entry = round(base_price, dp)
 
     atr = wilder_atr(bars)
-    fallback_distance = entry * 0.015
+    fallback_distance = entry * DEFAULT_STOP_PCT
 
     completed = bars.iloc[:-1] if len(bars) > 1 else bars
     window = completed.tail(SWING_LOOKBACK)
@@ -284,11 +369,14 @@ def build_plan(symbol: str, quote: Quote, req: CalcRequest, bars) -> dict:
         window = bars
 
     warnings = []
+    if synthetic_bars:
+        warnings.append("Bar history unavailable for timeframe; using synthetic ±1% range around spot.")
+
     swing = None
     raw_stop = None
 
     if sign == 1:
-        if not window.empty:
+        if not synthetic_bars and not window.empty:
             try:
                 swing = float(window["Low"].min())
                 buffer_val = atr if atr is not None else (fallback_distance / ATR_BUFFER)
@@ -298,9 +386,9 @@ def build_plan(symbol: str, quote: Quote, req: CalcRequest, bars) -> dict:
         if swing is None or raw_stop is None or raw_stop >= entry:
             raw_stop = entry - fallback_distance
             swing = raw_stop
-            warnings.append("Universal fallback: Applied standard 1.5% stop-loss distance.")
+            warnings.append("Fallback stop: 1.5% below entry (no valid swing low below entry).")
     else:
-        if not window.empty:
+        if not synthetic_bars and not window.empty:
             try:
                 swing = float(window["High"].max())
                 buffer_val = atr if atr is not None else (fallback_distance / ATR_BUFFER)
@@ -310,14 +398,14 @@ def build_plan(symbol: str, quote: Quote, req: CalcRequest, bars) -> dict:
         if swing is None or raw_stop is None or raw_stop <= entry:
             raw_stop = entry + fallback_distance
             swing = raw_stop
-            warnings.append("Universal fallback: Applied standard 1.5% stop-loss distance.")
+            warnings.append("Fallback stop: 1.5% above entry (no valid swing high above entry).")
 
     stop = round(raw_stop, dp)
     distance = abs(entry - stop)
     if distance <= 0:
         distance = fallback_distance
         stop = round(entry - sign * distance, dp)
-        warnings.append("Universal fallback enforced: Minimum distance safety floor applied.")
+        warnings.append("Minimum stop-distance floor applied.")
 
     risk_budget = req.equity * req.risk_pct / 100.0
     risk_per_unit = distance * multiplier
@@ -332,17 +420,25 @@ def build_plan(symbol: str, quote: Quote, req: CalcRequest, bars) -> dict:
     notional = quantity * entry * multiplier
 
     if quantity <= 0:
-        warnings.append("Risk budget is too small for one unit at this stop.")
-    warnings.append("Stop is a market-structure estimate. Gaps, slippage and fees can increase actual loss.")
+        warnings.append("Risk budget is too small for 1 unit at this stop distance.")
+    warnings.append("Quotes may be delayed. Gaps, spreads, slippage, and fees are not modeled in execution.")
+
     return {
-        "symbol": symbol, "direction": req.direction,
-        "unit": UNIT_NAMES[kind], "quantity": quantity,
-        "entry": entry, "stop": stop, "target": target,
+        "symbol": symbol,
+        "direction": req.direction,
+        "unit": UNIT_NAMES[kind],
+        "quantity": quantity,
+        "entry": entry,
+        "stop": stop,
+        "target": target,
         "timeframe": TIMEFRAMES[req.timeframe][2],
-        "swing_level": round(swing, dp), "atr": round(atr, dp + 2) if atr else 0.0,
-        "atr_buffer": ATR_BUFFER, "lookback_bars": len(window),
+        "swing_level": round(swing, dp),
+        "atr": round(atr, dp + 2) if atr else 0.0,
+        "atr_buffer": ATR_BUFFER,
+        "lookback_bars": len(window),
         "stop_pct": round(distance / entry * 100, 3),
-        "rr": req.rr, "risk_budget": round(risk_budget, 2),
+        "rr": req.rr,
+        "risk_budget": round(risk_budget, 2),
         "risk_at_size": round(risk_at_size, 2),
         "reward_at_target": round(reward, 2),
         "notional": round(notional, 2),
@@ -350,17 +446,25 @@ def build_plan(symbol: str, quote: Quote, req: CalcRequest, bars) -> dict:
         "warnings": warnings,
     }
 
+
 app = FastAPI(title="Position Engine", lifespan=lifespan)
-app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["GET", "POST"],
-                   allow_headers=["Content-Type"])
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_methods=["GET", "POST"],
+    allow_headers=["Content-Type"],
+)
+
 
 @app.get("/", include_in_schema=False)
 def index():
     return FileResponse(INDEX_FILE, headers={"Cache-Control": "no-cache"})
 
+
 @app.get("/healthz")
 def healthz():
     return {"ok": True, "tickers": len(_tickers), "tickers_loaded": _tickers_ready}
+
 
 @app.get("/api/search")
 def search(q: str = Query("", max_length=20)):
@@ -368,6 +472,7 @@ def search(q: str = Query("", max_length=20)):
     if not query:
         return []
     return [item for item in _tickers if item["symbol"].startswith(query)]
+
 
 @app.post("/api/calc")
 def calculate(req: CalcRequest):
@@ -383,14 +488,20 @@ def calculate(req: CalcRequest):
         bars = get_bars(symbol, req.timeframe)
     except NoQuoteError:
         raise HTTPException(404, f"No price available for {symbol}.")
-    except Exception as exc:
+    except Exception:
         log.exception("Market data request failed for %s", symbol)
         raise HTTPException(503, "Market data unavailable. Try again shortly.")
+
+    synthetic = False
     if bars is None:
-        # Fallback if timeframe bars are empty, generate synthetic micro-bars from quote
-        import pandas as pd
-        bars = pd.DataFrame({"High": [quote.price * 1.01], "Low": [quote.price * 0.99], "Close": [quote.price]})
-    return build_plan(symbol, quote, req, bars)
+        synthetic = True
+        bars = pd.DataFrame({
+            "High": [quote.price * 1.01],
+            "Low": [quote.price * 0.99],
+            "Close": [quote.price],
+        })
+    return build_plan(symbol, quote, req, bars, synthetic_bars=synthetic)
+
 
 if __name__ == "__main__":
     import uvicorn

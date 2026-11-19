@@ -2,345 +2,329 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<title>Trade Calculator - Position & Risk Engine v1.0</title>
-<meta name="description" content="Position size, automatic stop loss and target from account risk.">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Position Engine</title>
 <style>
-/* 2010 Web 2.0 Classic Styling */
+:root {
+  --bg: #f3f4f6;
+  --panel: #ffffff;
+  --line: #d1d5db;
+  --text: #111827;
+  --muted: #6b7280;
+  --long: #15803d;
+  --short: #b91c1c;
+  --accent: #1d4ed8;
+}
+* { box-sizing: border-box; }
 body {
-    margin: 0;
-    padding: 0;
-    background: #f0f0f0 url('data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAAiCAYAAAA6xPJAAAAANElEQVQYV2NkYGAwZGBgYGJgYGBkY2MzAAL/MDAwMP//M4AzAv///2dgYGBgYGZgZAAAAAElFTkSuQmCC') repeat-x top;
-    color: #333333;
-    font-family: Arial, Tahoma, Verdana, sans-serif;
-    font-size: 13px;
-    line-height: 1.4;
+  margin: 0;
+  padding: 24px 16px;
+  background: var(--bg);
+  color: var(--text);
+  font: 14px/1.45 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
 }
 main {
-    width: 860px;
-    margin: 30px auto;
-    background: #ffffff;
-    border: 1px solid #cccccc;
-    box-shadow: 0 2px 6px rgba(0,0,0,0.15);
-    -webkit-box-shadow: 0 2px 6px rgba(0,0,0,0.15);
-    -moz-box-shadow: 0 2px 6px rgba(0,0,0,0.15);
-    padding: 25px 30px;
+  max-width: 860px;
+  margin: 0 auto;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 24px;
 }
 header {
-    border-bottom: 2px solid #dddddd;
-    padding-bottom: 12px;
-    margin-bottom: 25px;
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  border-bottom: 1px solid var(--line);
+  padding-bottom: 12px;
+  margin-bottom: 20px;
 }
 h1 {
-    font-size: 22px;
-    font-weight: bold;
-    color: #222222;
-    margin: 0;
-    text-shadow: 1px 1px 0px #ffffff;
+  margin: 0;
+  font-size: 18px;
+}
+.sub {
+  font-size: 12px;
+  color: var(--muted);
 }
 .layout {
-    display: table;
-    width: 100%;
-    table-layout: fixed;
+  display: grid;
+  grid-template-columns: 1fr 1.15fr;
+  gap: 24px;
 }
-.inputs, .result {
-    display: table-cell;
-    vertical-align: top;
-    padding: 0 15px;
-}
-.inputs {
-    width: 45%;
-    border-right: 1px solid #e0e0e0;
-    padding-left: 0;
-}
-.result {
-    width: 55%;
-    padding-right: 0;
+@media (max-width: 720px) {
+  .layout { grid-template-columns: 1fr; }
 }
 .direction {
-    margin-bottom: 15px;
-    border-bottom: 1px solid #cccccc;
-    padding-bottom: 8px;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  margin-bottom: 16px;
 }
 .direction button {
-    background: #e6e6e6;
-    border: 1px solid #adadad;
-    padding: 6px 16px;
-    color: #333333;
-    font: bold 12px Arial, sans-serif;
-    cursor: pointer;
-    margin-right: 5px;
+  padding: 8px 12px;
+  border: 1px solid var(--line);
+  background: #f9fafb;
+  color: var(--text);
+  font-weight: 600;
+  border-radius: 4px;
+  cursor: pointer;
 }
-.direction button[aria-pressed=true] {
-    background: #4f81bd;
-    color: #ffffff;
-    border-color: #38608b;
+.direction[data-dir="LONG"] button[data-side="LONG"][aria-pressed="true"] {
+  background: var(--long);
+  border-color: var(--long);
+  color: #fff;
 }
-.direction[data-dir=LONG] button[aria-pressed=true] {
-    background: #2ca02c;
-    border-color: #1f6f1f;
-}
-.direction[data-dir=SHORT] button[aria-pressed=true] {
-    background: #d62728;
-    border-color: #9c1c1d;
+.direction[data-dir="SHORT"] button[data-side="SHORT"][aria-pressed="true"] {
+  background: var(--short);
+  border-color: var(--short);
+  color: #fff;
 }
 .field {
-    margin-bottom: 14px;
+  margin-bottom: 14px;
 }
 label {
-    display: block;
-    font-size: 11px;
-    font-weight: bold;
-    color: #555555;
-    margin-bottom: 4px;
-    text-transform: uppercase;
+  display: block;
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--muted);
+  margin-bottom: 4px;
 }
 .control {
-    display: flex;
-    align-items: center;
-    background: #ffffff;
-    border: 1px solid #b8b8b8;
-    box-shadow: inset 1px 1px 2px rgba(0,0,0,0.08);
-    padding: 4px 8px;
-    height: 28px;
+  display: flex;
+  align-items: center;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  background: #fff;
+  padding: 0 10px;
+  height: 36px;
 }
 .control:focus-within {
-    border-color: #38608b;
-    box-shadow: inset 1px 1px 2px rgba(0,0,0,0.1), 0 0 3px rgba(56,96,139,0.5);
+  border-color: var(--accent);
 }
 input, select {
-    width: 100%;
-    border: 0;
-    outline: 0;
-    background: transparent;
-    color: #000000;
-    font: 13px Arial, sans-serif;
+  width: 100%;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  color: var(--text);
+  font: inherit;
 }
 .prefix, .suffix {
-    color: #777777;
-    font-weight: bold;
-    font-size: 12px;
+  color: var(--muted);
+  font-weight: 600;
+  font-size: 13px;
 }
+.prefix { margin-right: 4px; }
+.suffix { margin-left: 4px; }
 .grid2 {
-    display: table;
-    width: 100%;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
 }
-.grid2 .field {
-    display: table-cell;
-    width: 50%;
-    padding-right: 10px;
-}
-.grid2 .field:last-child {
-    padding-right: 0;
-}
-.symbol-wrap {
-    position: relative;
-}
-#symbol {
-    font-weight: bold;
-    text-transform: uppercase;
-}
+.symbol-wrap { position: relative; }
+#symbol { font-weight: 600; text-transform: uppercase; }
 #suggestions {
-    position: absolute;
-    z-index: 10;
-    top: 100%;
-    left: 0;
-    right: 0;
-    max-height: 200px;
-    overflow-y: auto;
-    margin: 0;
-    padding: 0;
-    list-style: none;
-    background: #ffffff;
-    border: 1px solid #7f9db9;
-    box-shadow: 0 3px 6px rgba(0,0,0,0.2);
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  z-index: 20;
+  margin: 4px 0 0;
+  padding: 0;
+  list-style: none;
+  background: #fff;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  max-height: 220px;
+  overflow-y: auto;
 }
-#suggestions[hidden] {
-    display: none;
-}
+#suggestions[hidden] { display: none; }
 #suggestions li {
-    padding: 6px 10px;
-    display: flex;
-    justify-content: space-between;
-    cursor: pointer;
-    border-bottom: 1px solid #f0f0f0;
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 8px 10px;
+  cursor: pointer;
 }
-#suggestions li:hover, #suggestions li[aria-selected=true] {
-    background: #38608b;
-    color: #ffffff;
-}
-#suggestions li:hover .s-name, #suggestions li[aria-selected=true] .s-name {
-    color: #e0e0e0;
-}
-.s-symbol {
-    font-weight: bold;
+#suggestions li:hover, #suggestions li[aria-selected="true"] {
+  background: #eff6ff;
 }
 .s-name {
-    color: #666666;
-    font-size: 11px;
+  font-size: 12px;
+  color: var(--muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 .hint {
-    margin: 3px 0 0;
-    color: #777777;
-    font-size: 11px;
-    font-style: italic;
+  margin: 4px 0 0;
+  font-size: 12px;
+  color: var(--muted);
+}
+.result {
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 16px;
+  background: #fafafa;
 }
 .result-head {
-    background: #eef2f7;
-    border: 1px solid #b8cddc;
-    padding: 8px 12px;
-    display: flex;
-    justify-content: space-between;
-    font-weight: bold;
-    margin-bottom: 15px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 12px;
 }
 #result-symbol {
-    color: #1e395b;
+  font-weight: 700;
+  font-size: 15px;
 }
 #status {
-    font-size: 11px;
-    color: #555555;
-    font-weight: normal;
+  font-size: 12px;
+  color: var(--muted);
 }
 #status.error {
-    color: #cc0000;
-    font-weight: bold;
+  color: var(--short);
+  font-weight: 600;
 }
 .big {
-    background: #fafafa;
-    border: 1px solid #dddddd;
-    padding: 12px;
-    text-align: center;
-    margin-bottom: 15px;
+  background: #fff;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  padding: 14px;
+  text-align: center;
+  margin-bottom: 14px;
 }
 .big-label {
-    font-size: 11px;
-    font-weight: bold;
-    color: #666666;
-    margin-bottom: 4px;
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  color: var(--muted);
 }
 #quantity {
-    font-size: 32px;
-    font-weight: bold;
-    color: #222222;
+  font-size: 32px;
+  font-weight: 700;
+  margin-top: 2px;
+  display: inline-block;
 }
 #unit {
-    color: #555555;
-    font-size: 12px;
-    font-weight: bold;
-    margin-left: 4px;
+  font-size: 13px;
+  color: var(--muted);
+  margin-left: 6px;
 }
 .rows {
-    width: 100%;
-    border-collapse: collapse;
-    margin-bottom: 15px;
+  margin: 0;
 }
 .rows div {
-    display: flex;
-    justify-content: space-between;
-    padding: 6px 8px;
-    border-bottom: 1px solid #e5e5e5;
+  display: flex;
+  justify-content: space-between;
+  padding: 7px 4px;
+  border-bottom: 1px solid #e5e7eb;
 }
-.rows div:nth-child(even) {
-    background: #f9f9f9;
-}
-dt {
-    color: #444444;
-    font-size: 12px;
-}
-dd {
-    margin: 0;
-    font-size: 12px;
-    font-weight: bold;
-    color: #111111;
-}
-.broker-action {
-    margin-top: 15px;
-}
-.broker-btn {
-    width: 100%;
-    padding: 8px;
-    background: linear-gradient(to bottom, #fcfcfc 0%, #e0e0e0 100%);
-    background-color: #e0e0e0;
-    border: 1px solid #adadad;
-    color: #333333;
-    font: bold 12px Arial, sans-serif;
-    cursor: pointer;
-    text-align: center;
-}
-.broker-btn:hover {
-    background: linear-gradient(to bottom, #ffffff 0%, #eaeaea 100%);
-    border-color: #888888;
-}
+.rows div:last-child { border-bottom: 0; }
+dt { color: var(--muted); }
+dd { margin: 0; font-weight: 600; }
 #warning {
-    font-size: 11px;
-    color: #cc0000;
-    background: #ffcccc;
-    border: 1px solid #ff9999;
-    padding: 6px;
-    margin-top: 10px;
+  margin: 12px 0 0;
+  padding: 8px 10px;
+  border-radius: 4px;
+  background: #fef2f2;
+  border: 1px solid #fecaca;
+  color: var(--short);
+  font-size: 12px;
 }
 footer {
-    margin-top: 25px;
-    padding-top: 10px;
-    border-top: 1px solid #dddddd;
-    font-size: 10px;
-    color: #777777;
-    text-align: center;
+  margin-top: 18px;
+  font-size: 11px;
+  color: var(--muted);
 }
 </style>
 </head>
 <body>
 <main>
-<header><h1>Position Engine v1.0</h1></header>
-<div class="layout">
-<section class="inputs" aria-label="Trade inputs">
-  <div class="direction" id="direction" data-dir="LONG" role="group" aria-label="Direction">
-    <button type="button" data-side="LONG" aria-pressed="true">Long</button>
-    <button type="button" data-side="SHORT" aria-pressed="false">Short</button>
+  <header>
+    <h1>Position Engine</h1>
+    <span class="sub">Risk-first sizing. Paste chart link or enter ticker.</span>
+  </header>
+  <div class="layout">
+    <section class="inputs" aria-label="Trade inputs">
+      <div class="direction" id="direction" data-dir="LONG" role="group" aria-label="Direction">
+        <button type="button" data-side="LONG" aria-pressed="true">Long</button>
+        <button type="button" data-side="SHORT" aria-pressed="false">Short</button>
+      </div>
+      <div class="field">
+        <label for="symbol">Ticker or chart link</label>
+        <div class="symbol-wrap">
+          <div class="control">
+            <input id="symbol" value="SPY" autocomplete="off" autocapitalize="characters" spellcheck="false" role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="suggestions">
+          </div>
+          <ul id="suggestions" role="listbox" hidden></ul>
+        </div>
+        <p class="hint">Supports tickers, aliases (SPX, NAS100, GOLD), and chart URLs.</p>
+      </div>
+      <div class="field">
+        <label for="custom-entry">Entry price (optional)</label>
+        <div class="control">
+          <span class="prefix">$</span>
+          <input id="custom-entry" type="number" min=".00000001" step="any" placeholder="Use latest quote">
+        </div>
+        <p class="hint">Blank uses latest quote. Set a value to test a specific entry.</p>
+      </div>
+      <div class="grid2">
+        <div class="field">
+          <label for="equity">Account equity</label>
+          <div class="control"><span class="prefix">$</span><input id="equity" type="number" min=".01" step="any" value="10000"></div>
+        </div>
+        <div class="field">
+          <label for="risk">Risk per trade</label>
+          <div class="control"><input id="risk" type="number" min=".01" max="100" step="any" value="1"><span class="suffix">%</span></div>
+        </div>
+      </div>
+      <div class="grid2">
+        <div class="field">
+          <label for="rr">Reward multiple</label>
+          <div class="control"><input id="rr" type="number" min=".01" max="100" step="any" value="2"><span class="suffix">R</span></div>
+        </div>
+        <div class="field">
+          <label for="timeframe">Timeframe</label>
+          <div class="control">
+            <select id="timeframe">
+              <option value="1m">1 minute</option>
+              <option value="5m">5 minutes</option>
+              <option value="15m">15 minutes</option>
+              <option value="30m">30 minutes</option>
+              <option value="1h">1 hour</option>
+              <option value="4h">4 hours</option>
+              <option value="1d" selected>Daily</option>
+              <option value="1w">Weekly</option>
+            </select>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="result" id="result" aria-label="Position calculation">
+      <div class="result-head">
+        <span id="result-symbol">SPY</span>
+        <span id="status" aria-live="polite">Calculating…</span>
+      </div>
+      <div class="big">
+        <div class="big-label">Position Size</div>
+        <span id="quantity">—</span><span id="unit"></span>
+      </div>
+      <dl class="rows">
+        <div><dt>Entry</dt><dd id="entry">—</dd></div>
+        <div><dt>Stop loss</dt><dd id="stop">—</dd></div>
+        <div><dt>Take profit</dt><dd id="target">—</dd></div>
+        <div><dt>Dollar risk</dt><dd id="risk-value">—</dd></div>
+        <div><dt>Potential reward</dt><dd id="reward">—</dd></div>
+        <div><dt>Position notional</dt><dd id="notional">—</dd></div>
+      </dl>
+      <p id="warning" hidden></p>
+    </section>
   </div>
-  <div class="field">
-    <label for="symbol">Ticker or chart link</label>
-    <div class="symbol-wrap">
-      <div class="control"><input id="symbol" value="AAPL" autocomplete="off" autocapitalize="characters" spellcheck="false" role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="suggestions"></div>
-      <ul id="suggestions" role="listbox" hidden></ul>
-    </div>
-    <p class="hint">Type a ticker symbol or paste chart link.</p>
-  </div>
-  <div class="field">
-    <label for="custom-entry">Entry price (optional)</label>
-    <div class="control"><span class="prefix">$</span><input id="custom-entry" type="number" min=".00000001" step="any" placeholder="Market price"></div>
-    <p class="hint">Leave blank to execute on current market price.</p>
-  </div>
-  <div class="grid2">
-    <div class="field"><label for="equity">Account equity</label><div class="control"><span class="prefix">$</span><input id="equity" type="number" min=".01" step="any" value="10000"></div></div>
-    <div class="field"><label for="risk">Risk per trade</label><div class="control"><input id="risk" type="number" min=".01" max="100" step="any" value="1"><span class="suffix">%</span></div></div>
-  </div>
-  <div class="grid2">
-    <div class="field"><label for="rr">Take profit</label><div class="control"><input id="rr" type="number" min=".01" max="100" step="any" value="2"><span class="suffix">R</span></div></div>
-    <div class="field"><label for="timeframe">Timeframe</label><div class="control"><select id="timeframe"><option value="1m">1 minute</option><option value="5m">5 minutes</option><option value="15m">15 minutes</option><option value="30m">30 minutes</option><option value="1h">1 hour</option><option value="4h">4 hours</option><option value="1d" selected>Daily</option><option value="1w">Weekly</option></select></div></div>
-  </div>
-</section>
-<section class="result" id="result" aria-label="Position calculation">
-  <div class="result-head"><span id="result-symbol">AAPL</span><span id="status" aria-live="polite">Calculating…</span></div>
-  <div class="big">
-    <div class="big-label">POSITION SIZE</div>
-    <span id="quantity">—</span><span id="unit"></span>
-  </div>
-  <dl class="rows">
-    <div><dt>Entry</dt><dd id="entry">—</dd></div>
-    <div><dt>Stop loss</dt><dd id="stop">—</dd></div>
-    <div><dt>Take profit</dt><dd id="target">—</dd></div>
-    <div><dt>Maximum planned risk</dt><dd id="risk-value">—</dd></div>
-    <div><dt>Potential reward</dt><dd id="reward">—</dd></div>
-    <div><dt>Position value</dt><dd id="notional">—</dd></div>
-  </dl>
-  <div class="broker-action">
-    <button type="button" id="broker-btn" class="broker-btn">Execute on Broker — Coming Soon</button>
-  </div>
-  <p id="warning" hidden></p>
-</section>
-</div>
-<footer>Market data delayed. Stops do not guarantee execution at stop price. Gaps, spreads, slippage and fees apply.</footer>
+  <footer>Market data via Yahoo Finance (may be delayed). Stops do not guarantee fill price.</footer>
 </main>
 <script>
 (() => {
@@ -408,151 +392,218 @@ function parseLink(text) {
       else if (tail.length === 1) raw = tail[0];
     }
   }
-  const symbol = raw ? normalizeSymbol(raw) : "";
-  return { symbol, timeframe };
+  const sym = raw ? normalizeSymbol(raw) : "";
+  return { symbol: sym, timeframe };
 }
 
-const money = n => new Intl.NumberFormat("en-US",{style:"currency",currency:"USD",maximumFractionDigits:2}).format(n);
-const price = n => "$" + Number(n).toLocaleString("en-US",{maximumFractionDigits:8});
-const qtyFmt = new Intl.NumberFormat("en-US",{maximumFractionDigits:6});
+const money = n => new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 2 }).format(n);
+const price = n => "$" + Number(n).toLocaleString("en-US", { maximumFractionDigits: 8 });
+const qtyFmt = new Intl.NumberFormat("en-US", { maximumFractionDigits: 6 });
 
-function setStatus(text,error=false){status.textContent=text;status.classList.toggle("error",error)}
-function showError(message){setStatus(message,true);$("quantity").textContent="—";$("unit").textContent="";["entry","stop","target","risk-value","reward","notional"].forEach(id=>$(id).textContent="—");$("warning").hidden=true}
-
-function render(d){
- $("result-symbol").textContent=d.symbol;
- $("quantity").textContent=qtyFmt.format(d.quantity);
- $("unit").textContent=d.unit;
- $("entry").textContent=price(d.entry);
- $("stop").textContent=price(d.stop);
- $("target").textContent=price(d.target);
- $("risk-value").textContent=money(d.risk_at_size);
- $("reward").textContent=money(d.reward_at_target);
- $("notional").textContent=money(d.notional);
- $("warning").textContent=(d.warnings||[]).join(" ");
- $("warning").hidden=!(d.warnings||[]).length;
- setStatus("Updated "+new Date(d.priced_at).toLocaleTimeString([], {hour:"numeric",minute:"2-digit"}));
+function setStatus(text, error = false) {
+  status.textContent = text;
+  status.classList.toggle("error", error);
 }
 
-function scheduleCalc(delay=250){clearTimeout(calcTimer);calcTimer=setTimeout(calculate,delay)}
-
-async function calculate(){
- const seq=++calcSeq;calcAbort?.abort();
- let rawInput = symbol.value.trim();
- let targetSymbol = rawInput;
- 
- if(looksLikeLink(rawInput)) {
-   const link = parseLink(rawInput);
-   if(link?.symbol) {
-     targetSymbol = link.symbol;
-     if(link.timeframe && $("timeframe").value !== link.timeframe) {
-       $("timeframe").value = link.timeframe;
-     }
-   }
- }
-
- const entryVal = customEntry.value.trim();
- const parsedEntry = entryVal ? Number(entryVal) : null;
-
- const payload={
-   symbol:normalizeSymbol(targetSymbol),
-   direction,
-   equity:Number($("equity").value),
-   risk_pct:Number($("risk").value),
-   rr:Number($("rr").value),
-   timeframe:$("timeframe").value
- };
-
- if (parsedEntry !== null) {
-   if (!(parsedEntry > 0)) {
-     showError("Entry price must be greater than 0.");
-     return;
-   }
-   payload.entry_price = parsedEntry;
- }
-
- if(!payload.symbol){showError("Enter a symbol or link.");return}
- if(!(payload.equity>0)){showError("Enter valid account equity.");return}
- if(!(payload.risk_pct>0&&payload.risk_pct<=100)){showError("Risk must be greater than 0 and no more than 100%.");return}
- if(!(payload.rr>0&&payload.rr<=100)){showError("Enter a valid reward-to-risk multiple.");return}
-
- calcAbort=new AbortController();setStatus("Calculating…");
- try{
-  const response=await fetch("/api/calc",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(payload),signal:calcAbort.signal});
-  const data=await response.json().catch(()=>({}));
-  if(seq!==calcSeq)return;
-  if(!response.ok){showError(typeof data.detail==="string"?data.detail:"Unable to calculate this position.");return}
-  render(data);
- }catch(e){if(e.name!=="AbortError"&&seq===calcSeq)showError("Market data unavailable. Try again.");}
+function showError(message) {
+  setStatus(message, true);
+  $("quantity").textContent = "—";
+  $("unit").textContent = "";
+  ["entry", "stop", "target", "risk-value", "reward", "notional"].forEach(id => { $(id).textContent = "—"; });
+  $("warning").hidden = true;
 }
 
-function closeSuggestions(){clearTimeout(searchTimer);searchAbort?.abort();suggestions.hidden=true;suggestions.replaceChildren();symbol.setAttribute("aria-expanded","false");matches=[];active=-1}
-
-function drawSuggestions(items){
- matches=items;active=-1;suggestions.replaceChildren();
- if(!items.length){closeSuggestions();return}
- for(let i=0;i<items.length;i++){
-  const li=document.createElement("li");li.id="symbol-option-"+i;li.role="option";li.setAttribute("aria-selected","false");li.dataset.index=i;
-  const sym=document.createElement("span");sym.className="s-symbol";sym.textContent=items[i].symbol;
-  const name=document.createElement("span");name.className="s-name";name.textContent=items[i].name||"";
-  li.append(sym,name);suggestions.append(li);
- }
- suggestions.hidden=false;symbol.setAttribute("aria-expanded","true");
+function render(d) {
+  $("result-symbol").textContent = d.symbol;
+  $("quantity").textContent = qtyFmt.format(d.quantity);
+  $("unit").textContent = d.unit;
+  $("entry").textContent = price(d.entry);
+  $("stop").textContent = price(d.stop);
+  $("target").textContent = price(d.target);
+  $("risk-value").textContent = money(d.risk_at_size);
+  $("reward").textContent = money(d.reward_at_target);
+  $("notional").textContent = money(d.notional);
+  $("warning").textContent = (d.warnings || []).join(" ");
+  $("warning").hidden = !(d.warnings || []).length;
+  setStatus("Updated " + new Date(d.priced_at).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" }));
 }
 
-async function searchSymbols(query,seq){
- searchAbort?.abort();searchAbort=new AbortController();
- try{
-  const response=await fetch("/api/search?q="+encodeURIComponent(query),{signal:searchAbort.signal});
-  if(!response.ok)throw Error("search failed");
-  const items=await response.json();
-  if(seq===searchSeq)drawSuggestions(items);
- }catch(e){if(e.name!=="AbortError"&&seq===searchSeq)closeSuggestions()}
+function scheduleCalc(delay = 250) {
+  clearTimeout(calcTimer);
+  calcTimer = setTimeout(calculate, delay);
 }
 
-function onSymbolInput(){
- clearTimeout(searchTimer);const seq=++searchSeq;searchAbort?.abort();
- const val = symbol.value.trim();
- if(!val || looksLikeLink(val)){closeSuggestions();scheduleCalc();return}
- const query = val.toUpperCase();
- searchTimer=setTimeout(()=>searchSymbols(query,seq),100);
- scheduleCalc();
+async function calculate() {
+  const seq = ++calcSeq;
+  calcAbort?.abort();
+  const rawInput = symbol.value.trim();
+  let targetSymbol = rawInput;
+
+  if (looksLikeLink(rawInput)) {
+    const link = parseLink(rawInput);
+    if (link?.symbol) {
+      targetSymbol = link.symbol;
+      if (link.timeframe && $("timeframe").value !== link.timeframe) {
+        $("timeframe").value = link.timeframe;
+      }
+    }
+  }
+
+  const entryVal = customEntry.value.trim();
+  const parsedEntry = entryVal ? Number(entryVal) : null;
+
+  const payload = {
+    symbol: normalizeSymbol(targetSymbol),
+    direction,
+    equity: Number($("equity").value),
+    risk_pct: Number($("risk").value),
+    rr: Number($("rr").value),
+    timeframe: $("timeframe").value,
+  };
+
+  if (parsedEntry !== null) {
+    if (!(parsedEntry > 0)) {
+      showError("Entry price must be greater than 0.");
+      return;
+    }
+    payload.entry_price = parsedEntry;
+  }
+
+  if (!payload.symbol) { showError("Enter a symbol or link."); return; }
+  if (!(payload.equity > 0)) { showError("Enter valid account equity."); return; }
+  if (!(payload.risk_pct > 0 && payload.risk_pct <= 100)) { showError("Risk must be between 0% and 100%."); return; }
+  if (!(payload.rr > 0 && payload.rr <= 100)) { showError("Enter a valid reward multiple."); return; }
+
+  calcAbort = new AbortController();
+  setStatus("Calculating…");
+  try {
+    const response = await fetch("/api/calc", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+      signal: calcAbort.signal,
+    });
+    const data = await response.json().catch(() => ({}));
+    if (seq !== calcSeq) return;
+    if (!response.ok) {
+      showError(typeof data.detail === "string" ? data.detail : "Unable to calculate position.");
+      return;
+    }
+    render(data);
+  } catch (e) {
+    if (e.name !== "AbortError" && seq === calcSeq) {
+      showError("Market data unavailable. Try again.");
+    }
+  }
 }
 
-function choose(i){if(!matches[i])return;symbol.value=matches[i].symbol;customEntry.value="";closeSuggestions();scheduleCalc(0)}
-
-function moveActive(step){
- if(!matches.length)return;active=active<0?(step>0?0:matches.length-1):(active+step+matches.length)%matches.length;
- [...suggestions.children].forEach((el,i)=>el.setAttribute("aria-selected",String(i===active)));
- symbol.setAttribute("aria-activedescendant","symbol-option-"+active);
- suggestions.children[active].scrollIntoView({block:"nearest"});
+function closeSuggestions() {
+  clearTimeout(searchTimer);
+  searchAbort?.abort();
+  suggestions.hidden = true;
+  suggestions.replaceChildren();
+  symbol.setAttribute("aria-expanded", "false");
+  matches = [];
+  active = -1;
 }
 
-symbol.addEventListener("input",onSymbolInput);
-symbol.addEventListener("keydown",e=>{
- if(e.key==="ArrowDown"&&!suggestions.hidden){e.preventDefault();moveActive(1)}
- else if(e.key==="ArrowUp"&&!suggestions.hidden){e.preventDefault();moveActive(-1)}
- else if(e.key==="Escape")closeSuggestions();
- else if(e.key==="Enter"){e.preventDefault();if(!suggestions.hidden&&active>=0)choose(active);else{closeSuggestions();scheduleCalc(0)}}
+function drawSuggestions(items) {
+  matches = items;
+  active = -1;
+  suggestions.replaceChildren();
+  if (!items.length) { closeSuggestions(); return; }
+  for (let i = 0; i < items.length; i++) {
+    const li = document.createElement("li");
+    li.id = "symbol-option-" + i;
+    li.role = "option";
+    li.setAttribute("aria-selected", "false");
+    li.dataset.index = i;
+    const sym = document.createElement("span");
+    sym.textContent = items[i].symbol;
+    const name = document.createElement("span");
+    name.className = "s-name";
+    name.textContent = items[i].name || "";
+    li.append(sym, name);
+    suggestions.append(li);
+  }
+  suggestions.hidden = false;
+  symbol.setAttribute("aria-expanded", "true");
+}
+
+async function searchSymbols(query, seq) {
+  searchAbort?.abort();
+  searchAbort = new AbortController();
+  try {
+    const response = await fetch("/api/search?q=" + encodeURIComponent(query), { signal: searchAbort.signal });
+    if (!response.ok) throw Error("search failed");
+    const items = await response.json();
+    if (seq === searchSeq) drawSuggestions(items);
+  } catch (e) {
+    if (e.name !== "AbortError" && seq === searchSeq) closeSuggestions();
+  }
+}
+
+function onSymbolInput() {
+  clearTimeout(searchTimer);
+  const seq = ++searchSeq;
+  searchAbort?.abort();
+  const val = symbol.value.trim();
+  if (!val || looksLikeLink(val)) { closeSuggestions(); scheduleCalc(); return; }
+  const query = val.toUpperCase();
+  searchTimer = setTimeout(() => searchSymbols(query, seq), 100);
+  scheduleCalc();
+}
+
+function choose(i) {
+  if (!matches[i]) return;
+  symbol.value = matches[i].symbol;
+  customEntry.value = "";
+  closeSuggestions();
+  scheduleCalc(0);
+}
+
+function moveActive(step) {
+  if (!matches.length) return;
+  active = active < 0 ? (step > 0 ? 0 : matches.length - 1) : (active + step + matches.length) % matches.length;
+  [...suggestions.children].forEach((el, i) => el.setAttribute("aria-selected", String(i === active)));
+  symbol.setAttribute("aria-activedescendant", "symbol-option-" + active);
+  suggestions.children[active].scrollIntoView({ block: "nearest" });
+}
+
+symbol.addEventListener("input", onSymbolInput);
+symbol.addEventListener("keydown", e => {
+  if (e.key === "ArrowDown" && !suggestions.hidden) { e.preventDefault(); moveActive(1); }
+  else if (e.key === "ArrowUp" && !suggestions.hidden) { e.preventDefault(); moveActive(-1); }
+  else if (e.key === "Escape") closeSuggestions();
+  else if (e.key === "Enter") {
+    e.preventDefault();
+    if (!suggestions.hidden && active >= 0) choose(active);
+    else { closeSuggestions(); scheduleCalc(0); }
+  }
 });
-symbol.addEventListener("change",()=>{closeSuggestions();scheduleCalc(0)});
-suggestions.addEventListener("pointerdown",e=>{const li=e.target.closest("li[data-index]");if(li){e.preventDefault();choose(Number(li.dataset.index))}});
-document.addEventListener("pointerdown",e=>{if(!e.target.closest(".symbol-wrap"))closeSuggestions()});
+symbol.addEventListener("change", () => { closeSuggestions(); scheduleCalc(0); });
+suggestions.addEventListener("pointerdown", e => {
+  const li = e.target.closest("li[data-index]");
+  if (li) { e.preventDefault(); choose(Number(li.dataset.index)); }
+});
+document.addEventListener("pointerdown", e => {
+  if (!e.target.closest(".symbol-wrap")) closeSuggestions();
+});
 
-["custom-entry","equity","risk","rr","timeframe"].forEach(id=>$(id).addEventListener("input",()=>scheduleCalc()));
-$("timeframe").addEventListener("change",()=>scheduleCalc(0));
+["custom-entry", "equity", "risk", "rr", "timeframe"].forEach(id => $(id).addEventListener("input", () => scheduleCalc()));
+$("timeframe").addEventListener("change", () => scheduleCalc(0));
 
-document.querySelectorAll("[data-side]").forEach(btn=>btn.addEventListener("click",()=>{
- direction=btn.dataset.side;
- $("direction").dataset.dir=direction;
- document.querySelectorAll("[data-side]").forEach(b=>b.setAttribute("aria-pressed",String(b===btn)));
- scheduleCalc(0);
+document.querySelectorAll("[data-side]").forEach(btn => btn.addEventListener("click", () => {
+  direction = btn.dataset.side;
+  $("direction").dataset.dir = direction;
+  document.querySelectorAll("[data-side]").forEach(b => b.setAttribute("aria-pressed", String(b === btn)));
+  scheduleCalc(0);
 }));
 
-setInterval(()=>{
- const typing=document.activeElement&&document.activeElement.matches("input,select");
- if(!document.hidden&&!typing)calculate();
-},20000);
+setInterval(() => {
+  const typing = document.activeElement && document.activeElement.matches("input,select");
+  if (!document.hidden && !typing) calculate();
+}, 20000);
 
 calculate();
 })();
