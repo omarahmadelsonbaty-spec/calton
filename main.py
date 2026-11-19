@@ -1,12 +1,4 @@
-"""Position Engine API.
-
-First-principles sizing:
-1. Risk budget ($) = Equity * (Risk % / 100)
-2. Risk per unit ($) = |Entry - Stop| * Contract Multiplier
-3. Position size = floor(Risk budget / Risk per unit) (or 6 decimals for crypto)
-
-Data source: Yahoo Finance via yfinance. Quotes and bars can be delayed.
-"""
+"""Position Engine API."""
 import asyncio
 import logging
 import math
@@ -53,7 +45,7 @@ TIMEFRAMES = {
     "1w": ("2y", "1wk", "weekly", 14400),
 }
 
-SYMBOL_RE = re.compile(r"[A-Z0-9^][A-Z0-9^.=\-]{0,19}")
+SYMBOL_RE = re.compile(r"[A-Z0-9^][A-Z0-9^.=\-]{0,23}")
 PLAIN_TICKER_RE = re.compile(r"[A-Z0-9]+(?:-[A-Z0-9]+)?")
 NASDAQ_DIRECTORIES = (
     ("https://www.nasdaqtrader.com/dynamic/SymDir/nasdaqlisted.txt", "Symbol"),
@@ -63,11 +55,18 @@ CORE_TICKERS = {
     "SPY": "SPDR S&P 500 ETF Trust",
     "QQQ": "Invesco QQQ Trust",
     "AAPL": "Apple Inc.",
+    "MSFT": "Microsoft Corp.",
+    "NVDA": "NVIDIA Corp.",
     "AMZN": "Amazon.com Inc.",
     "AMD": "Advanced Micro Devices",
+    "META": "Meta Platforms Inc.",
+    "TSLA": "Tesla Inc.",
     "BTC-USD": "Bitcoin / US Dollar",
     "ETH-USD": "Ethereum / US Dollar",
     "SOL-USD": "Solana / US Dollar",
+    "EURUSD=X": "Euro / US Dollar",
+    "GBPUSD=X": "British Pound / US Dollar",
+    "USDJPY=X": "US Dollar / Japanese Yen",
     "ES=F": "E-mini S&P 500 Futures",
     "MES=F": "Micro E-mini S&P 500 Futures",
     "NQ=F": "E-mini Nasdaq-100 Futures",
@@ -81,25 +80,47 @@ CORE_TICKERS = {
     "GC=F": "Gold Futures",
     "MGC=F": "Micro Gold Futures",
     "SI=F": "Silver Futures",
+    "^GSPC": "S&P 500 Index",
+    "^NDX": "Nasdaq-100 Index",
+    "^DJI": "Dow Jones Industrial Average",
+    "^VIX": "CBOE Volatility Index",
 }
 FUTURES_MULTIPLIERS = {
-    "ES=F": 50.0, "MES=F": 5.0, "NQ=F": 20.0, "MNQ=F": 2.0,
-    "RTY=F": 50.0, "M2K=F": 5.0, "YM=F": 5.0, "MYM=F": 0.5,
-    "CL=F": 1000.0, "MCL=F": 100.0, "GC=F": 100.0,
-    "MGC=F": 10.0, "SI=F": 5000.0,
+    "ES=F": 50.0,
+    "MES=F": 5.0,
+    "NQ=F": 20.0,
+    "MNQ=F": 2.0,
+    "RTY=F": 50.0,
+    "M2K=F": 5.0,
+    "YM=F": 5.0,
+    "MYM=F": 0.5,
+    "CL=F": 1000.0,
+    "MCL=F": 100.0,
+    "GC=F": 100.0,
+    "MGC=F": 10.0,
+    "SI=F": 5000.0,
 }
-CRYPTO_SUFFIXES = ("-USD",)
-UNIT_NAMES = {"equity": "shares", "future": "contracts", "crypto": "units"}
+FX_STANDARD_UNITS = 100000.0
 
 
 def instrument_kind(symbol: str) -> str:
     if symbol.endswith("=F"):
         return "future"
-    if symbol.endswith(CRYPTO_SUFFIXES):
-        return "crypto"
     if symbol.endswith("=X"):
         return "fx"
+    if symbol.endswith("-USD"):
+        return "crypto"
     return "equity"
+
+
+def unit_label(symbol: str, kind: str) -> str:
+    if kind == "future":
+        return "contracts"
+    if kind == "crypto":
+        return "units"
+    if kind == "fx":
+        return "units"
+    return "shares"
 
 
 _tickers = [{"symbol": s, "name": n} for s, n in sorted(CORE_TICKERS.items())]
@@ -189,8 +210,6 @@ class TTLCache:
 
 
 class SingleFlight:
-    """Coalesces identical in-flight fetches so concurrent misses don't stampede upstream."""
-
     def __init__(self):
         self._lock = threading.Lock()
         self._events: dict[object, threading.Event] = {}
@@ -336,8 +355,22 @@ def price_decimals(price: float) -> int:
     return 8
 
 
+def resolve_multiplier(symbol: str, kind: str, entry: float) -> float:
+    if kind == "future":
+        if symbol in FUTURES_MULTIPLIERS:
+            return FUTURES_MULTIPLIERS[symbol]
+        return 1.0
+    if kind == "fx":
+        if symbol.endswith("USD=X"):
+            return 1.0
+        if symbol.startswith("USD") and symbol.endswith("=X"):
+            return 1.0 / entry
+        return 1.0
+    return 1.0
+
+
 class CalcRequest(BaseModel):
-    symbol: str = Field(min_length=1, max_length=20)
+    symbol: str = Field(min_length=1, max_length=24)
     direction: Literal["LONG", "SHORT"]
     equity: float = Field(gt=0, le=1e12)
     risk_pct: float = Field(gt=0, le=100)
@@ -348,17 +381,12 @@ class CalcRequest(BaseModel):
 
 def build_plan(symbol: str, quote: Quote, req: CalcRequest, bars, synthetic_bars: bool = False) -> dict:
     kind = instrument_kind(symbol)
-    if kind == "future" and symbol not in FUTURES_MULTIPLIERS:
-        raise HTTPException(400, f"Contract specification unavailable for {symbol}.")
-    if kind == "fx":
-        raise HTTPException(400, "FX sizing is disabled until account-currency conversion and lot specifications are supported.")
-
-    multiplier = FUTURES_MULTIPLIERS.get(symbol, 1.0)
     sign = 1 if req.direction == "LONG" else -1
 
     base_price = req.entry_price if req.entry_price is not None else quote.price
     dp = price_decimals(base_price)
     entry = round(base_price, dp)
+    multiplier = resolve_multiplier(symbol, kind, entry)
 
     atr = wilder_atr(bars)
     fallback_distance = entry * DEFAULT_STOP_PCT
@@ -367,10 +395,6 @@ def build_plan(symbol: str, quote: Quote, req: CalcRequest, bars, synthetic_bars
     window = completed.tail(SWING_LOOKBACK)
     if len(window) < min(5, SWING_LOOKBACK):
         window = bars
-
-    warnings = []
-    if synthetic_bars:
-        warnings.append("Bar history unavailable for timeframe; using synthetic ±1% range around spot.")
 
     swing = None
     raw_stop = None
@@ -386,7 +410,6 @@ def build_plan(symbol: str, quote: Quote, req: CalcRequest, bars, synthetic_bars
         if swing is None or raw_stop is None or raw_stop >= entry:
             raw_stop = entry - fallback_distance
             swing = raw_stop
-            warnings.append("Fallback stop: 1.5% below entry (no valid swing low below entry).")
     else:
         if not synthetic_bars and not window.empty:
             try:
@@ -398,14 +421,12 @@ def build_plan(symbol: str, quote: Quote, req: CalcRequest, bars, synthetic_bars
         if swing is None or raw_stop is None or raw_stop <= entry:
             raw_stop = entry + fallback_distance
             swing = raw_stop
-            warnings.append("Fallback stop: 1.5% above entry (no valid swing high above entry).")
 
     stop = round(raw_stop, dp)
     distance = abs(entry - stop)
     if distance <= 0:
         distance = fallback_distance
         stop = round(entry - sign * distance, dp)
-        warnings.append("Minimum stop-distance floor applied.")
 
     risk_budget = req.equity * req.risk_pct / 100.0
     risk_per_unit = distance * multiplier
@@ -419,14 +440,10 @@ def build_plan(symbol: str, quote: Quote, req: CalcRequest, bars, synthetic_bars
     reward = quantity * distance * req.rr * multiplier
     notional = quantity * entry * multiplier
 
-    if quantity <= 0:
-        warnings.append("Risk budget is too small for 1 unit at this stop distance.")
-    warnings.append("Quotes may be delayed. Gaps, spreads, slippage, and fees are not modeled in execution.")
-
     return {
         "symbol": symbol,
         "direction": req.direction,
-        "unit": UNIT_NAMES[kind],
+        "unit": unit_label(symbol, kind),
         "quantity": quantity,
         "entry": entry,
         "stop": stop,
@@ -443,7 +460,6 @@ def build_plan(symbol: str, quote: Quote, req: CalcRequest, bars, synthetic_bars
         "reward_at_target": round(reward, 2),
         "notional": round(notional, 2),
         "priced_at": quote.fetched_at.isoformat(),
-        "warnings": warnings,
     }
 
 
@@ -467,7 +483,7 @@ def healthz():
 
 
 @app.get("/api/search")
-def search(q: str = Query("", max_length=20)):
+def search(q: str = Query("", max_length=24)):
     query = q.strip().upper()
     if not query:
         return []
@@ -481,8 +497,6 @@ def calculate(req: CalcRequest):
         raise HTTPException(400, "Invalid symbol.")
     if req.timeframe not in TIMEFRAMES:
         raise HTTPException(400, "Unsupported timeframe.")
-    if instrument_kind(symbol) == "future" and symbol not in FUTURES_MULTIPLIERS:
-        raise HTTPException(400, f"Contract specification unavailable for {symbol}.")
     try:
         quote = get_quote(symbol)
         bars = get_bars(symbol, req.timeframe)
@@ -490,7 +504,7 @@ def calculate(req: CalcRequest):
         raise HTTPException(404, f"No price available for {symbol}.")
     except Exception:
         log.exception("Market data request failed for %s", symbol)
-        raise HTTPException(503, "Market data unavailable. Try again shortly.")
+        raise HTTPException(503, "Market data unavailable.")
 
     synthetic = False
     if bars is None:

@@ -159,11 +159,6 @@ input, select {
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-.hint {
-  margin: 4px 0 0;
-  font-size: 12px;
-  color: var(--muted);
-}
 .result {
   border: 1px solid var(--line);
   border-radius: 6px;
@@ -225,27 +220,13 @@ input, select {
 .rows div:last-child { border-bottom: 0; }
 dt { color: var(--muted); }
 dd { margin: 0; font-weight: 600; }
-#warning {
-  margin: 12px 0 0;
-  padding: 8px 10px;
-  border-radius: 4px;
-  background: #fef2f2;
-  border: 1px solid #fecaca;
-  color: var(--short);
-  font-size: 12px;
-}
-footer {
-  margin-top: 18px;
-  font-size: 11px;
-  color: var(--muted);
-}
 </style>
 </head>
 <body>
 <main>
   <header>
     <h1>Position Engine</h1>
-    <span class="sub">Risk-first sizing. Paste chart link or enter ticker.</span>
+    <span class="sub">Instant risk-first sizing</span>
   </header>
   <div class="layout">
     <section class="inputs" aria-label="Trade inputs">
@@ -254,50 +235,48 @@ footer {
         <button type="button" data-side="SHORT" aria-pressed="false">Short</button>
       </div>
       <div class="field">
-        <label for="symbol">Ticker or chart link</label>
+        <label for="symbol">Asset or chart URL</label>
         <div class="symbol-wrap">
           <div class="control">
             <input id="symbol" value="SPY" autocomplete="off" autocapitalize="characters" spellcheck="false" role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="suggestions">
           </div>
           <ul id="suggestions" role="listbox" hidden></ul>
         </div>
-        <p class="hint">Supports tickers, aliases (SPX, NAS100, GOLD), and chart URLs.</p>
       </div>
       <div class="field">
         <label for="custom-entry">Entry price (optional)</label>
         <div class="control">
           <span class="prefix">$</span>
-          <input id="custom-entry" type="number" min=".00000001" step="any" placeholder="Use latest quote">
+          <input id="custom-entry" type="number" min=".00000001" step="any" placeholder="Latest quote">
         </div>
-        <p class="hint">Blank uses latest quote. Set a value to test a specific entry.</p>
       </div>
       <div class="grid2">
         <div class="field">
-          <label for="equity">Account equity</label>
+          <label for="equity">Equity</label>
           <div class="control"><span class="prefix">$</span><input id="equity" type="number" min=".01" step="any" value="10000"></div>
         </div>
         <div class="field">
-          <label for="risk">Risk per trade</label>
+          <label for="risk">Risk</label>
           <div class="control"><input id="risk" type="number" min=".01" max="100" step="any" value="1"><span class="suffix">%</span></div>
         </div>
       </div>
       <div class="grid2">
         <div class="field">
-          <label for="rr">Reward multiple</label>
+          <label for="rr">Target</label>
           <div class="control"><input id="rr" type="number" min=".01" max="100" step="any" value="2"><span class="suffix">R</span></div>
         </div>
         <div class="field">
           <label for="timeframe">Timeframe</label>
           <div class="control">
             <select id="timeframe">
-              <option value="1m">1 minute</option>
-              <option value="5m">5 minutes</option>
-              <option value="15m">15 minutes</option>
-              <option value="30m">30 minutes</option>
-              <option value="1h">1 hour</option>
-              <option value="4h">4 hours</option>
-              <option value="1d" selected>Daily</option>
-              <option value="1w">Weekly</option>
+              <option value="1m">1m</option>
+              <option value="5m">5m</option>
+              <option value="15m">15m</option>
+              <option value="30m">30m</option>
+              <option value="1h">1h</option>
+              <option value="4h">4h</option>
+              <option value="1d" selected>1D</option>
+              <option value="1w">1W</option>
             </select>
           </div>
         </div>
@@ -315,16 +294,14 @@ footer {
       </div>
       <dl class="rows">
         <div><dt>Entry</dt><dd id="entry">—</dd></div>
-        <div><dt>Stop loss</dt><dd id="stop">—</dd></div>
-        <div><dt>Take profit</dt><dd id="target">—</dd></div>
-        <div><dt>Dollar risk</dt><dd id="risk-value">—</dd></div>
-        <div><dt>Potential reward</dt><dd id="reward">—</dd></div>
-        <div><dt>Position notional</dt><dd id="notional">—</dd></div>
+        <div><dt>Stop</dt><dd id="stop">—</dd></div>
+        <div><dt>Target</dt><dd id="target">—</dd></div>
+        <div><dt>Risk</dt><dd id="risk-value">—</dd></div>
+        <div><dt>Reward</dt><dd id="reward">—</dd></div>
+        <div><dt>Notional</dt><dd id="notional">—</dd></div>
       </dl>
-      <p id="warning" hidden></p>
     </section>
   </div>
-  <footer>Market data via Yahoo Finance (may be delayed). Stops do not guarantee fill price.</footer>
 </main>
 <script>
 (() => {
@@ -336,7 +313,15 @@ let matches = [], active = -1;
 
 const EXCHANGES = new Set(["NASDAQ", "NYSE", "AMEX", "ARCA", "BATS", "CBOE", "OTC", "CME", "BINANCE", "BYBIT", "OKX", "TVC"]);
 const TRADFI_TICKERS = new Set(["SPY", "QQQ", "DIA", "IWM", "AAPL", "MSFT", "NVDA", "AMD", "AMZN", "META", "TSLA"]);
-const INDEX_ALIASES = { SPX: "^GSPC", SPX500: "^GSPC", US500: "^GSPC", NAS100: "^NDX", US100: "^NDX", US30: "^DJI", VIX: "^VIX", GOLD: "GC=F", USOIL: "CL=F" };
+const INDEX_ALIASES = {
+  SPX: "^GSPC", SPX500: "^GSPC", US500: "^GSPC",
+  NAS100: "^NDX", US100: "^NDX",
+  US30: "^DJI", DJI: "^DJI",
+  VIX: "^VIX",
+  GOLD: "GC=F", XAUUSD: "GC=F",
+  SILVER: "SI=F", XAGUSD: "SI=F",
+  USOIL: "CL=F", WTI: "CL=F",
+};
 const TV_INTERVALS = { "1": "1m", "5": "5m", "15": "15m", "30": "30m", "60": "1h", "240": "4h", "D": "1d", "1D": "1d", "W": "1w", "1W": "1w" };
 
 function looksLikeLink(text) {
@@ -356,7 +341,13 @@ function normalizeSymbol(input) {
   s = s.replace(/[-_.]PERP$/, "").replace(/\.P$/, "");
   if (INDEX_ALIASES[s]) return INDEX_ALIASES[s];
   let m = s.match(/^([A-Z0-9]+)[12]!$/);
-  if (m && ["ES", "NQ", "RTY", "YM", "CL", "GC"].includes(m[1])) return `${m[1]}=F`;
+  if (m && ["ES", "NQ", "RTY", "YM", "MES", "MNQ", "M2K", "MYM", "CL", "MCL", "GC", "MGC", "SI"].includes(m[1])) {
+    return `${m[1]}=F`;
+  }
+  m = s.match(/^([A-Z]{3})([A-Z]{3})$/);
+  if (m && !TRADFI_TICKERS.has(s) && !s.endsWith("USD") && !s.endsWith("USDT") && !s.endsWith("USDC")) {
+    return `${m[1]}${m[2]}=X`;
+  }
   m = s.match(/^([A-Z0-9]{2,10})[-/]?(USDT|USDC|USD)$/);
   if (m) {
     const base = m[1];
@@ -410,7 +401,6 @@ function showError(message) {
   $("quantity").textContent = "—";
   $("unit").textContent = "";
   ["entry", "stop", "target", "risk-value", "reward", "notional"].forEach(id => { $(id).textContent = "—"; });
-  $("warning").hidden = true;
 }
 
 function render(d) {
@@ -423,8 +413,6 @@ function render(d) {
   $("risk-value").textContent = money(d.risk_at_size);
   $("reward").textContent = money(d.reward_at_target);
   $("notional").textContent = money(d.notional);
-  $("warning").textContent = (d.warnings || []).join(" ");
-  $("warning").hidden = !(d.warnings || []).length;
   setStatus("Updated " + new Date(d.priced_at).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" }));
 }
 
@@ -469,10 +457,10 @@ async function calculate() {
     payload.entry_price = parsedEntry;
   }
 
-  if (!payload.symbol) { showError("Enter a symbol or link."); return; }
-  if (!(payload.equity > 0)) { showError("Enter valid account equity."); return; }
+  if (!payload.symbol) { showError("Enter a symbol or URL."); return; }
+  if (!(payload.equity > 0)) { showError("Enter valid equity."); return; }
   if (!(payload.risk_pct > 0 && payload.risk_pct <= 100)) { showError("Risk must be between 0% and 100%."); return; }
-  if (!(payload.rr > 0 && payload.rr <= 100)) { showError("Enter a valid reward multiple."); return; }
+  if (!(payload.rr > 0 && payload.rr <= 100)) { showError("Enter a valid target multiple."); return; }
 
   calcAbort = new AbortController();
   setStatus("Calculating…");
@@ -492,7 +480,7 @@ async function calculate() {
     render(data);
   } catch (e) {
     if (e.name !== "AbortError" && seq === calcSeq) {
-      showError("Market data unavailable. Try again.");
+      showError("Market data unavailable.");
     }
   }
 }
