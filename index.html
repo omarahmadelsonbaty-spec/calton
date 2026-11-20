@@ -3,272 +3,265 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Position Engine</title>
+<title>Position</title>
 <style>
 :root {
-  --bg: #f3f4f6;
-  --panel: #ffffff;
-  --line: #d1d5db;
-  --text: #111827;
-  --muted: #6b7280;
-  --long: #15803d;
-  --short: #b91c1c;
-  --accent: #1d4ed8;
+  --bg: #ffffff;
+  --fg: #1d1d1f;
+  --muted: #86868b;
+  --line: #e5e5e7;
+  --fill: #f5f5f7;
+  --green: #15803d;
+  --red: #b91c1c;
+  --sans: -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", "Segoe UI", sans-serif;
+  --mono: "SF Mono", ui-monospace, Menlo, Consolas, monospace;
 }
+
 * { box-sizing: border-box; }
+
 body {
   margin: 0;
-  padding: 24px 16px;
+  padding: 48px 24px;
   background: var(--bg);
-  color: var(--text);
-  font: 14px/1.45 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  color: var(--fg);
+  font: 400 14px/1.4 var(--sans);
+  -webkit-font-smoothing: antialiased;
 }
+
 main {
-  max-width: 860px;
+  max-width: 720px;
   margin: 0 auto;
-  background: var(--panel);
-  border: 1px solid var(--line);
-  border-radius: 6px;
-  padding: 24px;
 }
+
 header {
   display: flex;
   justify-content: space-between;
   align-items: baseline;
+  padding-bottom: 16px;
+  margin-bottom: 36px;
   border-bottom: 1px solid var(--line);
-  padding-bottom: 12px;
-  margin-bottom: 20px;
 }
+
 h1 {
   margin: 0;
-  font-size: 18px;
+  font-size: 20px;
+  font-weight: 600;
+  letter-spacing: -0.02em;
 }
-.sub {
+
+#status {
   font-size: 12px;
   color: var(--muted);
+  font-variant-numeric: tabular-nums;
 }
-.layout {
-  display: grid;
-  grid-template-columns: 1fr 1.15fr;
-  gap: 24px;
-}
-@media (max-width: 720px) {
-  .layout { grid-template-columns: 1fr; }
-}
-.direction {
+
+#status.err { color: var(--red); }
+
+.grid {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 8px;
-  margin-bottom: 16px;
+  gap: 56px;
 }
-.direction button {
-  padding: 8px 12px;
-  border: 1px solid var(--line);
-  background: #f9fafb;
-  color: var(--text);
-  font-weight: 600;
-  border-radius: 4px;
+
+@media (max-width: 640px) {
+  body { padding: 28px 18px; }
+  .grid { grid-template-columns: 1fr; gap: 36px; }
+}
+
+.segmented {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  padding: 3px;
+  margin-bottom: 24px;
+  background: var(--fill);
+  border-radius: 8px;
+}
+
+.segmented button {
+  height: 30px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--muted);
+  font: 600 13px/1 var(--sans);
   cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease, box-shadow 0.15s ease;
 }
-.direction[data-dir="LONG"] button[data-side="LONG"][aria-pressed="true"] {
-  background: var(--long);
-  border-color: var(--long);
-  color: #fff;
+
+.segmented button[aria-pressed="true"] {
+  background: var(--bg);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
 }
-.direction[data-dir="SHORT"] button[data-side="SHORT"][aria-pressed="true"] {
-  background: var(--short);
-  border-color: var(--short);
-  color: #fff;
-}
-.field {
-  margin-bottom: 14px;
-}
+
+.segmented button[aria-pressed="true"][data-side="LONG"] { color: var(--green); }
+.segmented button[aria-pressed="true"][data-side="SHORT"] { color: var(--red); }
+
+.field { margin-bottom: 18px; }
+
 label {
   display: block;
+  margin-bottom: 6px;
   font-size: 11px;
-  font-weight: 700;
+  font-weight: 600;
+  letter-spacing: 0.02em;
   text-transform: uppercase;
-  letter-spacing: 0.04em;
   color: var(--muted);
-  margin-bottom: 4px;
 }
-.control {
+
+.box {
   display: flex;
   align-items: center;
+  height: 38px;
+  padding: 0 12px;
   border: 1px solid var(--line);
-  border-radius: 4px;
-  background: #fff;
-  padding: 0 10px;
-  height: 36px;
+  border-radius: 8px;
+  background: var(--bg);
+  transition: border-color 0.15s ease;
 }
-.control:focus-within {
-  border-color: var(--accent);
-}
+
+.box:focus-within { border-color: var(--fg); }
+
 input, select {
   width: 100%;
   border: 0;
   outline: 0;
   background: transparent;
-  color: var(--text);
-  font: inherit;
+  color: var(--fg);
+  font: 500 14px/1 var(--sans);
 }
-.prefix, .suffix {
-  color: var(--muted);
+
+input::placeholder {
+  color: #b0b0b5;
+  font-weight: 400;
+}
+
+input[type="number"] {
+  font-family: var(--mono);
+  font-variant-numeric: tabular-nums;
+}
+
+#symbol {
   font-weight: 600;
-  font-size: 13px;
+  letter-spacing: 0.01em;
+  text-transform: uppercase;
 }
-.prefix { margin-right: 4px; }
-.suffix { margin-left: 4px; }
-.grid2 {
+
+.affix {
+  color: var(--muted);
+  font-size: 13px;
+  user-select: none;
+}
+
+.row2 {
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 12px;
 }
-.symbol-wrap { position: relative; }
-#symbol { font-weight: 600; text-transform: uppercase; }
-#suggestions {
-  position: absolute;
-  top: 100%;
-  left: 0;
-  right: 0;
-  z-index: 20;
-  margin: 4px 0 0;
-  padding: 0;
-  list-style: none;
-  background: #fff;
-  border: 1px solid var(--line);
-  border-radius: 4px;
-  max-height: 220px;
-  overflow-y: auto;
+
+.hero {
+  padding-bottom: 20px;
+  margin-bottom: 4px;
+  border-bottom: 1px solid var(--line);
 }
-#suggestions[hidden] { display: none; }
-#suggestions li {
-  display: flex;
-  justify-content: space-between;
-  gap: 8px;
-  padding: 8px 10px;
-  cursor: pointer;
-}
-#suggestions li:hover, #suggestions li[aria-selected="true"] {
-  background: #eff6ff;
-}
-.s-name {
-  font-size: 12px;
-  color: var(--muted);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.result {
-  border: 1px solid var(--line);
-  border-radius: 6px;
-  padding: 16px;
-  background: #fafafa;
-}
-.result-head {
+
+.hero-top {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 12px;
-}
-#result-symbol {
-  font-weight: 700;
-  font-size: 15px;
-}
-#status {
-  font-size: 12px;
-  color: var(--muted);
-}
-#status.error {
-  color: var(--short);
-  font-weight: 600;
-}
-.big {
-  background: #fff;
-  border: 1px solid var(--line);
-  border-radius: 4px;
-  padding: 14px;
-  text-align: center;
-  margin-bottom: 14px;
-}
-.big-label {
   font-size: 11px;
-  font-weight: 700;
+  font-weight: 600;
+  letter-spacing: 0.02em;
   text-transform: uppercase;
   color: var(--muted);
 }
-#quantity {
-  font-size: 32px;
-  font-weight: 700;
-  margin-top: 2px;
-  display: inline-block;
+
+.hero-val {
+  margin-top: 8px;
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
 }
+
+#qty {
+  font: 600 42px/1 var(--mono);
+  letter-spacing: -0.03em;
+  font-variant-numeric: tabular-nums;
+}
+
 #unit {
   font-size: 13px;
   color: var(--muted);
-  margin-left: 6px;
 }
-.rows {
-  margin: 0;
-}
-.rows div {
+
+dl { margin: 0; }
+
+dl div {
   display: flex;
   justify-content: space-between;
-  padding: 7px 4px;
-  border-bottom: 1px solid #e5e7eb;
+  align-items: center;
+  padding: 13px 0;
+  border-bottom: 1px solid var(--line);
 }
-.rows div:last-child { border-bottom: 0; }
-dt { color: var(--muted); }
-dd { margin: 0; font-weight: 600; }
+
+dt {
+  font-size: 13px;
+  color: var(--muted);
+}
+
+dd {
+  margin: 0;
+  font: 500 13px/1 var(--mono);
+  font-variant-numeric: tabular-nums;
+}
+
+dd.loss { color: var(--red); }
+dd.gain { color: var(--green); }
 </style>
 </head>
 <body>
 <main>
   <header>
-    <h1>Position Engine</h1>
-    <span class="sub">Instant risk-first sizing</span>
+    <h1>Position</h1>
+    <span id="status">Ready</span>
   </header>
-  <div class="layout">
-    <section class="inputs" aria-label="Trade inputs">
-      <div class="direction" id="direction" data-dir="LONG" role="group" aria-label="Direction">
+
+  <div class="grid">
+    <section>
+      <div class="segmented">
         <button type="button" data-side="LONG" aria-pressed="true">Long</button>
         <button type="button" data-side="SHORT" aria-pressed="false">Short</button>
       </div>
+
       <div class="field">
-        <label for="symbol">Asset or chart URL</label>
-        <div class="symbol-wrap">
-          <div class="control">
-            <input id="symbol" value="SPY" autocomplete="off" autocapitalize="characters" spellcheck="false" role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="suggestions">
-          </div>
-          <ul id="suggestions" role="listbox" hidden></ul>
-        </div>
+        <label for="symbol">Symbol</label>
+        <div class="box"><input id="symbol" value="SPY" autocomplete="off" spellcheck="false"></div>
       </div>
+
       <div class="field">
-        <label for="custom-entry">Entry price (optional)</label>
-        <div class="control">
-          <span class="prefix">$</span>
-          <input id="custom-entry" type="number" min=".00000001" step="any" placeholder="Latest quote">
-        </div>
+        <label for="entry-in">Entry</label>
+        <div class="box"><span class="affix">$ </span><input id="entry-in" type="number" min="0" step="any" placeholder="Market"></div>
       </div>
-      <div class="grid2">
+
+      <div class="row2">
         <div class="field">
-          <label for="equity">Equity</label>
-          <div class="control"><span class="prefix">$</span><input id="equity" type="number" min=".01" step="any" value="10000"></div>
+          <label for="equity">Account</label>
+          <div class="box"><span class="affix">$ </span><input id="equity" type="number" min="0" step="any" value="10000"></div>
         </div>
         <div class="field">
           <label for="risk">Risk</label>
-          <div class="control"><input id="risk" type="number" min=".01" max="100" step="any" value="1"><span class="suffix">%</span></div>
+          <div class="box"><input id="risk" type="number" min="0" max="100" step="any" value="1"><span class="affix"> %</span></div>
         </div>
       </div>
-      <div class="grid2">
+
+      <div class="row2">
         <div class="field">
           <label for="rr">Target</label>
-          <div class="control"><input id="rr" type="number" min=".01" max="100" step="any" value="2"><span class="suffix">R</span></div>
+          <div class="box"><input id="rr" type="number" min="0" step="any" value="2"><span class="affix"> R</span></div>
         </div>
         <div class="field">
-          <label for="timeframe">Timeframe</label>
-          <div class="control">
-            <select id="timeframe">
+          <label for="tf">Timeframe</label>
+          <div class="box">
+            <select id="tf">
               <option value="1m">1m</option>
               <option value="5m">5m</option>
               <option value="15m">15m</option>
@@ -283,317 +276,116 @@ dd { margin: 0; font-weight: 600; }
       </div>
     </section>
 
-    <section class="result" id="result" aria-label="Position calculation">
-      <div class="result-head">
-        <span id="result-symbol">SPY</span>
-        <span id="status" aria-live="polite">Calculating…</span>
+    <section>
+      <div class="hero">
+        <div class="hero-top">
+          <span>Size</span>
+          <span id="out-sym">SPY</span>
+        </div>
+        <div class="hero-val">
+          <span id="qty">—</span>
+          <span id="unit"></span>
+        </div>
       </div>
-      <div class="big">
-        <div class="big-label">Position Size</div>
-        <span id="quantity">—</span><span id="unit"></span>
-      </div>
-      <dl class="rows">
+
+      <dl>
         <div><dt>Entry</dt><dd id="entry">—</dd></div>
         <div><dt>Stop</dt><dd id="stop">—</dd></div>
         <div><dt>Target</dt><dd id="target">—</dd></div>
-        <div><dt>Risk</dt><dd id="risk-value">—</dd></div>
-        <div><dt>Reward</dt><dd id="reward">—</dd></div>
+        <div><dt>Risk</dt><dd id="max-loss" class="loss">—</dd></div>
+        <div><dt>Reward</dt><dd id="max-gain" class="gain">—</dd></div>
         <div><dt>Notional</dt><dd id="notional">—</dd></div>
       </dl>
     </section>
   </div>
 </main>
+
 <script>
 (() => {
-"use strict";
-const $ = id => document.getElementById(id);
-const symbol = $("symbol"), customEntry = $("custom-entry"), suggestions = $("suggestions"), status = $("status");
-let direction = "LONG", searchTimer, calcTimer, searchAbort, calcAbort, searchSeq = 0, calcSeq = 0;
-let matches = [], active = -1;
+  const $ = id => document.getElementById(id);
+  let side = "LONG", timer, ctrl;
 
-const EXCHANGES = new Set(["NASDAQ", "NYSE", "AMEX", "ARCA", "BATS", "CBOE", "OTC", "CME", "BINANCE", "BYBIT", "OKX", "TVC"]);
-const TRADFI_TICKERS = new Set(["SPY", "QQQ", "DIA", "IWM", "AAPL", "MSFT", "NVDA", "AMD", "AMZN", "META", "TSLA"]);
-const INDEX_ALIASES = {
-  SPX: "^GSPC", SPX500: "^GSPC", US500: "^GSPC",
-  NAS100: "^NDX", US100: "^NDX",
-  US30: "^DJI", DJI: "^DJI",
-  VIX: "^VIX",
-  GOLD: "GC=F", XAUUSD: "GC=F",
-  SILVER: "SI=F", XAGUSD: "SI=F",
-  USOIL: "CL=F", WTI: "CL=F",
-};
-const TV_INTERVALS = { "1": "1m", "5": "5m", "15": "15m", "30": "30m", "60": "1h", "240": "4h", "D": "1d", "1D": "1d", "W": "1w", "1W": "1w" };
+  const usd = n => new Intl.NumberFormat("en-US", {
+    style: "currency",
+    currency: "USD",
+    minimumFractionDigits: 2,
+    maximumFractionDigits: Math.abs(n) < 1 ? 6 : 2
+  }).format(n);
 
-function looksLikeLink(text) {
-  const t = String(text).trim();
-  return /^https?:\/\//i.test(t) || /^www\./i.test(t) || /^[a-z0-9-]+(\.[a-z0-9-]+)+[/?]/i.test(t);
-}
+  const num = (n, d = 6) => Number(n).toLocaleString("en-US", { maximumFractionDigits: d });
 
-function stripExchange(s) {
-  if (!s.includes(":")) return s;
-  const [left, right] = s.split(":");
-  return EXCHANGES.has(left) ? right : (EXCHANGES.has(right) ? left : right);
-}
-
-function normalizeSymbol(input) {
-  let s = stripExchange(String(input).trim().toUpperCase().replace(/\s+/g, ""));
-  if (!s) return "";
-  s = s.replace(/[-_.]PERP$/, "").replace(/\.P$/, "");
-  if (INDEX_ALIASES[s]) return INDEX_ALIASES[s];
-  let m = s.match(/^([A-Z0-9]+)[12]!$/);
-  if (m && ["ES", "NQ", "RTY", "YM", "MES", "MNQ", "M2K", "MYM", "CL", "MCL", "GC", "MGC", "SI"].includes(m[1])) {
-    return `${m[1]}=F`;
+  function setErr(msg) {
+    $("status").textContent = msg;
+    $("status").className = "err";
+    ["qty", "entry", "stop", "target", "max-loss", "max-gain", "notional"].forEach(id => $(id).textContent = "—");
+    $("unit").textContent = "";
   }
-  m = s.match(/^([A-Z]{3})([A-Z]{3})$/);
-  if (m && !TRADFI_TICKERS.has(s) && !s.endsWith("USD") && !s.endsWith("USDT") && !s.endsWith("USDC")) {
-    return `${m[1]}${m[2]}=X`;
-  }
-  m = s.match(/^([A-Z0-9]{2,10})[-/]?(USDT|USDC|USD)$/);
-  if (m) {
-    const base = m[1];
-    if (INDEX_ALIASES[base]) return INDEX_ALIASES[base];
-    if (TRADFI_TICKERS.has(base)) return base;
-    return `${base}-USD`;
-  }
-  return s;
-}
 
-function parseLink(text) {
-  const t = String(text).trim();
-  let url;
-  try {
-    url = new URL(/^https?:\/\//i.test(t) ? t : `https://${t}`);
-  } catch {
-    return null;
-  }
-  const interval = url.searchParams.get("interval") || url.searchParams.get("resolution");
-  const timeframe = interval ? (TV_INTERVALS[interval.toUpperCase()] ?? null) : null;
-  let raw = "";
-  for (const [k, v] of url.searchParams.entries()) {
-    if (["symbol", "ticker", "pair", "t", "s", "p"].includes(k.toLowerCase()) && v) {
-      raw = v;
-      break;
-    }
-  }
-  if (!raw) {
-    const parts = url.pathname.split("/").filter(Boolean);
-    if (parts.length > 0 && (parts[0] === "trade" || parts[0] === "pro")) {
-      const tail = parts.slice(1).filter(p => !["spot", "usdt", "usdc", "linear", "perpetual"].includes(p.toLowerCase()));
-      if (tail.length >= 2) raw = `${tail[0]}${tail[1]}`;
-      else if (tail.length === 1) raw = tail[0];
-    }
-  }
-  const sym = raw ? normalizeSymbol(raw) : "";
-  return { symbol: sym, timeframe };
-}
+  async function calc() {
+    ctrl?.abort();
+    ctrl = new AbortController();
 
-const money = n => new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 2 }).format(n);
-const price = n => "$" + Number(n).toLocaleString("en-US", { maximumFractionDigits: 8 });
-const qtyFmt = new Intl.NumberFormat("en-US", { maximumFractionDigits: 6 });
+    const sym = $("symbol").value.trim().toUpperCase();
+    const equity = Number($("equity").value);
+    const risk_pct = Number($("risk").value);
+    const rr = Number($("rr").value);
+    const entryRaw = $("entry-in").value.trim();
+    const entry_price = entryRaw === "" ? null : Number(entryRaw);
 
-function setStatus(text, error = false) {
-  status.textContent = text;
-  status.classList.toggle("error", error);
-}
+    if (!sym) return setErr("Enter symbol");
+    if (!(equity > 0) || !(risk_pct > 0 && risk_pct <= 100) || !(rr > 0)) return setErr("Invalid inputs");
+    if (entry_price !== null && !(entry_price > 0)) return setErr("Invalid entry");
 
-function showError(message) {
-  setStatus(message, true);
-  $("quantity").textContent = "—";
-  $("unit").textContent = "";
-  ["entry", "stop", "target", "risk-value", "reward", "notional"].forEach(id => { $(id).textContent = "—"; });
-}
+    $("status").textContent = "Calculating…";
+    $("status").className = "";
 
-function render(d) {
-  $("result-symbol").textContent = d.symbol;
-  $("quantity").textContent = qtyFmt.format(d.quantity);
-  $("unit").textContent = d.unit;
-  $("entry").textContent = price(d.entry);
-  $("stop").textContent = price(d.stop);
-  $("target").textContent = price(d.target);
-  $("risk-value").textContent = money(d.risk_at_size);
-  $("reward").textContent = money(d.reward_at_target);
-  $("notional").textContent = money(d.notional);
-  setStatus("Updated " + new Date(d.priced_at).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" }));
-}
+    try {
+      const res = await fetch("/api/calc", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          symbol: sym,
+          direction: side,
+          equity,
+          risk_pct,
+          rr,
+          timeframe: $("tf").value,
+          entry_price
+        }),
+        signal: ctrl.signal
+      });
+      const d = await res.json();
+      if (!res.ok) return setErr(d.detail || "Unavailable");
 
-function scheduleCalc(delay = 250) {
-  clearTimeout(calcTimer);
-  calcTimer = setTimeout(calculate, delay);
-}
-
-async function calculate() {
-  const seq = ++calcSeq;
-  calcAbort?.abort();
-  const rawInput = symbol.value.trim();
-  let targetSymbol = rawInput;
-
-  if (looksLikeLink(rawInput)) {
-    const link = parseLink(rawInput);
-    if (link?.symbol) {
-      targetSymbol = link.symbol;
-      if (link.timeframe && $("timeframe").value !== link.timeframe) {
-        $("timeframe").value = link.timeframe;
-      }
+      $("out-sym").textContent = d.symbol;
+      $("qty").textContent = num(d.quantity, 6);
+      $("unit").textContent = d.unit;
+      $("entry").textContent = usd(d.entry);
+      $("stop").textContent = `${usd(d.stop)} (${d.stop_pct}%)`;
+      $("target").textContent = usd(d.target);
+      $("max-loss").textContent = usd(d.risk_at_size);
+      $("max-gain").textContent = usd(d.reward_at_target);
+      $("notional").textContent = usd(d.notional);
+      $("status").textContent = new Date(d.priced_at).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
+    } catch (e) {
+      if (e.name !== "AbortError") setErr("Offline");
     }
   }
 
-  const entryVal = customEntry.value.trim();
-  const parsedEntry = entryVal ? Number(entryVal) : null;
+  const sched = () => { clearTimeout(timer); timer = setTimeout(calc, 180); };
 
-  const payload = {
-    symbol: normalizeSymbol(targetSymbol),
-    direction,
-    equity: Number($("equity").value),
-    risk_pct: Number($("risk").value),
-    rr: Number($("rr").value),
-    timeframe: $("timeframe").value,
-  };
+  document.querySelectorAll("[data-side]").forEach(b => b.addEventListener("click", () => {
+    side = b.dataset.side;
+    document.querySelectorAll("[data-side]").forEach(x => x.setAttribute("aria-pressed", String(x === b)));
+    calc();
+  }));
 
-  if (parsedEntry !== null) {
-    if (!(parsedEntry > 0)) {
-      showError("Entry price must be greater than 0.");
-      return;
-    }
-    payload.entry_price = parsedEntry;
-  }
+  ["symbol", "entry-in", "equity", "risk", "rr", "tf"].forEach(id => {
+    $(id).addEventListener("input", sched);
+    $(id).addEventListener("change", calc);
+  });
 
-  if (!payload.symbol) { showError("Enter a symbol or URL."); return; }
-  if (!(payload.equity > 0)) { showError("Enter valid equity."); return; }
-  if (!(payload.risk_pct > 0 && payload.risk_pct <= 100)) { showError("Risk must be between 0% and 100%."); return; }
-  if (!(payload.rr > 0 && payload.rr <= 100)) { showError("Enter a valid target multiple."); return; }
-
-  calcAbort = new AbortController();
-  setStatus("Calculating…");
-  try {
-    const response = await fetch("/api/calc", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(payload),
-      signal: calcAbort.signal,
-    });
-    const data = await response.json().catch(() => ({}));
-    if (seq !== calcSeq) return;
-    if (!response.ok) {
-      showError(typeof data.detail === "string" ? data.detail : "Unable to calculate position.");
-      return;
-    }
-    render(data);
-  } catch (e) {
-    if (e.name !== "AbortError" && seq === calcSeq) {
-      showError("Market data unavailable.");
-    }
-  }
-}
-
-function closeSuggestions() {
-  clearTimeout(searchTimer);
-  searchAbort?.abort();
-  suggestions.hidden = true;
-  suggestions.replaceChildren();
-  symbol.setAttribute("aria-expanded", "false");
-  matches = [];
-  active = -1;
-}
-
-function drawSuggestions(items) {
-  matches = items;
-  active = -1;
-  suggestions.replaceChildren();
-  if (!items.length) { closeSuggestions(); return; }
-  for (let i = 0; i < items.length; i++) {
-    const li = document.createElement("li");
-    li.id = "symbol-option-" + i;
-    li.role = "option";
-    li.setAttribute("aria-selected", "false");
-    li.dataset.index = i;
-    const sym = document.createElement("span");
-    sym.textContent = items[i].symbol;
-    const name = document.createElement("span");
-    name.className = "s-name";
-    name.textContent = items[i].name || "";
-    li.append(sym, name);
-    suggestions.append(li);
-  }
-  suggestions.hidden = false;
-  symbol.setAttribute("aria-expanded", "true");
-}
-
-async function searchSymbols(query, seq) {
-  searchAbort?.abort();
-  searchAbort = new AbortController();
-  try {
-    const response = await fetch("/api/search?q=" + encodeURIComponent(query), { signal: searchAbort.signal });
-    if (!response.ok) throw Error("search failed");
-    const items = await response.json();
-    if (seq === searchSeq) drawSuggestions(items);
-  } catch (e) {
-    if (e.name !== "AbortError" && seq === searchSeq) closeSuggestions();
-  }
-}
-
-function onSymbolInput() {
-  clearTimeout(searchTimer);
-  const seq = ++searchSeq;
-  searchAbort?.abort();
-  const val = symbol.value.trim();
-  if (!val || looksLikeLink(val)) { closeSuggestions(); scheduleCalc(); return; }
-  const query = val.toUpperCase();
-  searchTimer = setTimeout(() => searchSymbols(query, seq), 100);
-  scheduleCalc();
-}
-
-function choose(i) {
-  if (!matches[i]) return;
-  symbol.value = matches[i].symbol;
-  customEntry.value = "";
-  closeSuggestions();
-  scheduleCalc(0);
-}
-
-function moveActive(step) {
-  if (!matches.length) return;
-  active = active < 0 ? (step > 0 ? 0 : matches.length - 1) : (active + step + matches.length) % matches.length;
-  [...suggestions.children].forEach((el, i) => el.setAttribute("aria-selected", String(i === active)));
-  symbol.setAttribute("aria-activedescendant", "symbol-option-" + active);
-  suggestions.children[active].scrollIntoView({ block: "nearest" });
-}
-
-symbol.addEventListener("input", onSymbolInput);
-symbol.addEventListener("keydown", e => {
-  if (e.key === "ArrowDown" && !suggestions.hidden) { e.preventDefault(); moveActive(1); }
-  else if (e.key === "ArrowUp" && !suggestions.hidden) { e.preventDefault(); moveActive(-1); }
-  else if (e.key === "Escape") closeSuggestions();
-  else if (e.key === "Enter") {
-    e.preventDefault();
-    if (!suggestions.hidden && active >= 0) choose(active);
-    else { closeSuggestions(); scheduleCalc(0); }
-  }
-});
-symbol.addEventListener("change", () => { closeSuggestions(); scheduleCalc(0); });
-suggestions.addEventListener("pointerdown", e => {
-  const li = e.target.closest("li[data-index]");
-  if (li) { e.preventDefault(); choose(Number(li.dataset.index)); }
-});
-document.addEventListener("pointerdown", e => {
-  if (!e.target.closest(".symbol-wrap")) closeSuggestions();
-});
-
-["custom-entry", "equity", "risk", "rr", "timeframe"].forEach(id => $(id).addEventListener("input", () => scheduleCalc()));
-$("timeframe").addEventListener("change", () => scheduleCalc(0));
-
-document.querySelectorAll("[data-side]").forEach(btn => btn.addEventListener("click", () => {
-  direction = btn.dataset.side;
-  $("direction").dataset.dir = direction;
-  document.querySelectorAll("[data-side]").forEach(b => b.setAttribute("aria-pressed", String(b === btn)));
-  scheduleCalc(0);
-}));
-
-setInterval(() => {
-  const typing = document.activeElement && document.activeElement.matches("input,select");
-  if (!document.hidden && !typing) calculate();
-}, 20000);
-
-calculate();
+  calc();
 })();
 </script>
 </body>
