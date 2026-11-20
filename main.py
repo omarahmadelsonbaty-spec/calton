@@ -292,6 +292,9 @@ def calc(req: CalcRequest):
             raise HTTPException(422, "Stop below entry")
 
     dist = abs(entry - stop)
+    if dist <= 0:
+        raise HTTPException(422, "Invalid stop distance")
+
     kind, unit = kind_and_unit(symbol)
     mult = MULTIPLIERS.get(symbol, 1.0)
     if kind == "fx" and symbol.startswith("USD") and symbol.endswith("=X") and not symbol.endswith("USD=X"):
@@ -299,11 +302,19 @@ def calc(req: CalcRequest):
 
     risk_budget = req.equity * (req.risk_pct / 100.0)
     risk_per_unit = dist * mult
+    if risk_per_unit <= 0:
+        raise HTTPException(422, "Invalid risk per unit")
+
     raw_qty = risk_budget / risk_per_unit
-    qty = math.floor(raw_qty) if kind in ("equity", "future") else math.floor(raw_qty * 1e6) / 1e6
+    if kind == "future":
+        qty = math.floor(raw_qty)
+    elif kind == "equity":
+        qty = math.floor(raw_qty * 1e4) / 1e4
+    else:
+        qty = math.floor(raw_qty * 1e6) / 1e6
 
     if qty <= 0:
-        raise HTTPException(422, "Account too small for 1 unit")
+        raise HTTPException(422, "Account too small")
 
     target = round(entry + sign * dist * req.rr, dp)
 
