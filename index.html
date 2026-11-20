@@ -1,203 +1,214 @@
 <!doctype html>
-<html lang="en">
+<html>
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>pos</title>
 <style>
-body {
-  margin: 24px;
-  background: #fafafa;
-  color: #141414;
+html, body {
+  margin: 0;
+  padding: 0;
+  width: 100%;
+  min-height: 100vh;
+  background: #ffffff;
+  color: #000000;
   font-family: Arial, Helvetica, sans-serif;
   font-size: 14px;
 }
-.wrap {
-  max-width: 700px;
+.app {
+  width: 100%;
+  min-height: 100vh;
+  padding: 20px 28px;
+  box-sizing: border-box;
   display: flex;
-  gap: 36px;
-  flex-wrap: wrap;
+  flex-direction: column;
 }
-.col {
-  flex: 1 1 280px;
+.top {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding-bottom: 12px;
+  margin-bottom: 20px;
+  border-bottom: 1px solid #cccccc;
 }
-h1 {
-  margin: 0 0 16px;
+.title {
   font-size: 16px;
-  font-weight: 700;
+  font-weight: normal;
 }
 #status {
-  margin-left: 10px;
-  font-size: 12px;
-  color: #666;
-  font-family: Consolas, monospace;
+  font-size: 13px;
+  color: #555555;
 }
-.side {
+.panes {
+  flex: 1;
+  display: flex;
+  gap: 36px;
+}
+.pane {
+  flex: 1;
+  min-width: 0;
+}
+.sides {
   display: flex;
   gap: 8px;
   margin-bottom: 14px;
 }
-.side button {
+.sides button {
   flex: 1;
-  padding: 7px 10px;
-  font-size: 13px;
-  font-weight: 700;
+  padding: 8px 10px;
+  font-family: Arial, Helvetica, sans-serif;
+  font-size: 14px;
+  border: 1px solid #888888;
+  border-radius: 3px;
+  background: #f5f5f5;
+  color: #000000;
   cursor: pointer;
-  border: 1px solid #999;
-  background: #fff;
-  color: #141414;
 }
-.side button.on-long {
-  background: #1b6e3c;
-  border-color: #1b6e3c;
-  color: #fff;
+.sides button.long-active {
+  background: #1a7a3e;
+  border-color: #1a7a3e;
+  color: #ffffff;
 }
-.side button.on-short {
-  background: #a62626;
-  border-color: #a62626;
-  color: #fff;
+.sides button.short-active {
+  background: #b82525;
+  border-color: #b82525;
+  color: #ffffff;
 }
 .field {
-  margin-bottom: 12px;
+  margin-bottom: 14px;
 }
 label {
   display: block;
-  margin-bottom: 3px;
-  font-size: 12px;
-  color: #444;
+  margin-bottom: 4px;
+  font-size: 13px;
 }
 input, select {
   width: 100%;
   box-sizing: border-box;
-  padding: 6px 8px;
+  padding: 7px 9px;
+  font-family: Arial, Helvetica, sans-serif;
   font-size: 14px;
-  background: #fff;
-  color: #141414;
-  border: 1px solid #aaa;
+  color: #000000;
+  background: #ffffff;
+  border: 1px solid #888888;
+  border-radius: 0;
 }
-input[type="number"] {
-  font-family: Consolas, monospace;
-}
-#symbol {
-  font-family: Consolas, monospace;
-  font-weight: 700;
-  text-transform: uppercase;
-}
-.row {
+.pair {
   display: flex;
-  gap: 10px;
+  gap: 12px;
 }
-.row .field {
+.pair .field {
   flex: 1;
 }
 .qty-box {
-  padding: 10px 12px;
-  background: #fff;
-  border: 1px solid #aaa;
-  margin-bottom: 12px;
+  padding: 14px 16px;
+  border: 1px solid #888888;
+  margin-bottom: 16px;
 }
-.qty-lbl {
-  font-size: 12px;
-  color: #555;
+.qty-label {
+  font-size: 13px;
+  color: #444444;
 }
-#qty {
-  font-family: Consolas, monospace;
+.qty-num {
+  margin-top: 4px;
   font-size: 32px;
-  font-weight: 700;
 }
 #unit {
-  font-family: Consolas, monospace;
-  font-size: 12px;
-  color: #555;
+  font-size: 14px;
+  color: #444444;
   margin-left: 6px;
 }
 table {
   width: 100%;
   border-collapse: collapse;
-  background: #fff;
-  border: 1px solid #aaa;
-  font-family: Consolas, monospace;
-  font-size: 13px;
 }
 td {
-  padding: 7px 10px;
-  border-bottom: 1px solid #e0e0e0;
-}
-tr:last-child td {
-  border-bottom: 0;
+  padding: 9px 4px;
+  border-bottom: 1px solid #dddddd;
+  font-size: 14px;
 }
 td:last-child {
   text-align: right;
-  font-weight: 700;
+}
+@media (max-width: 720px) {
+  .panes {
+    flex-direction: column;
+    gap: 24px;
+  }
 }
 </style>
 </head>
 <body>
-<h1>pos<span id="status"></span></h1>
-
-<div class="wrap">
-  <div class="col">
-    <div class="side">
-      <button type="button" id="btnLong">LONG</button>
-      <button type="button" id="btnShort">SHORT</button>
-    </div>
-
-    <div class="field">
-      <label for="symbol">symbol</label>
-      <input id="symbol" value="SPY" autocomplete="off" spellcheck="false">
-    </div>
-
-    <div class="field">
-      <label for="entryIn">entry (blank = market)</label>
-      <input id="entryIn" type="number" step="any" placeholder="market">
-    </div>
-
-    <div class="row">
-      <div class="field">
-        <label for="equity">account ($)</label>
-        <input id="equity" type="number" step="any" value="10000">
-      </div>
-      <div class="field">
-        <label for="risk">risk (%)</label>
-        <input id="risk" type="number" step="any" value="1">
-      </div>
-    </div>
-
-    <div class="row">
-      <div class="field">
-        <label for="rr">target (R)</label>
-        <input id="rr" type="number" step="any" value="2">
-      </div>
-      <div class="field">
-        <label for="tf">timeframe</label>
-        <select id="tf">
-          <option value="1m">1m</option>
-          <option value="5m">5m</option>
-          <option value="15m">15m</option>
-          <option value="30m">30m</option>
-          <option value="1h">1h</option>
-          <option value="4h">4h</option>
-          <option value="1d" selected>1d</option>
-          <option value="1w">1w</option>
-        </select>
-      </div>
-    </div>
+<div class="app">
+  <div class="top">
+    <span class="title">pos</span>
+    <span id="status"></span>
   </div>
 
-  <div class="col">
-    <div class="qty-box">
-      <div class="qty-lbl">size (<span id="outSym">SPY</span>)</div>
-      <span id="qty">-</span><span id="unit"></span>
+  <div class="panes">
+    <div class="pane">
+      <div class="sides">
+        <button type="button" id="longBtn">Long</button>
+        <button type="button" id="shortBtn">Short</button>
+      </div>
+
+      <div class="field">
+        <label for="symbol">Symbol</label>
+        <input id="symbol" value="SPY" autocomplete="off" spellcheck="false">
+      </div>
+
+      <div class="field">
+        <label for="entryIn">Entry (blank = market)</label>
+        <input id="entryIn" type="number" step="any" placeholder="market">
+      </div>
+
+      <div class="pair">
+        <div class="field">
+          <label for="equity">Account ($)</label>
+          <input id="equity" type="number" step="any" value="10000">
+        </div>
+        <div class="field">
+          <label for="risk">Risk (%)</label>
+          <input id="risk" type="number" step="any" value="1">
+        </div>
+      </div>
+
+      <div class="pair">
+        <div class="field">
+          <label for="rr">Target (R)</label>
+          <input id="rr" type="number" step="any" value="2">
+        </div>
+        <div class="field">
+          <label for="tf">Timeframe</label>
+          <select id="tf">
+            <option value="1m">1m</option>
+            <option value="5m">5m</option>
+            <option value="15m">15m</option>
+            <option value="30m">30m</option>
+            <option value="1h">1h</option>
+            <option value="4h">4h</option>
+            <option value="1d" selected>1d</option>
+            <option value="1w">1w</option>
+          </select>
+        </div>
+      </div>
     </div>
 
-    <table>
-      <tr><td>entry</td><td id="entry">-</td></tr>
-      <tr><td>stop</td><td id="stop">-</td></tr>
-      <tr><td>target</td><td id="target">-</td></tr>
-      <tr><td>max loss</td><td id="loss">-</td></tr>
-      <tr><td>max gain</td><td id="gain">-</td></tr>
-      <tr><td>notional</td><td id="notional">-</td></tr>
-    </table>
+    <div class="pane">
+      <div class="qty-box">
+        <div class="qty-label">Size (<span id="outSym">SPY</span>)</div>
+        <div class="qty-num"><span id="qty">-</span><span id="unit"></span></div>
+      </div>
+
+      <table>
+        <tr><td>Entry</td><td id="entry">-</td></tr>
+        <tr><td>Stop</td><td id="stop">-</td></tr>
+        <tr><td>Target</td><td id="target">-</td></tr>
+        <tr><td>Max loss</td><td id="loss">-</td></tr>
+        <tr><td>Max gain</td><td id="gain">-</td></tr>
+        <tr><td>Notional</td><td id="notional">-</td></tr>
+      </table>
+    </div>
   </div>
 </div>
 
@@ -207,13 +218,13 @@ let dir = "LONG", timer, abortCtrl;
 
 function setDir(next) {
   dir = next;
-  $("btnLong").className = dir === "LONG" ? "on-long" : "";
-  $("btnShort").className = dir === "SHORT" ? "on-short" : "";
+  $("longBtn").className = dir === "LONG" ? "long-active" : "";
+  $("shortBtn").className = dir === "SHORT" ? "short-active" : "";
   calc();
 }
 
-$("btnLong").onclick = () => setDir("LONG");
-$("btnShort").onclick = () => setDir("SHORT");
+$("longBtn").onclick = () => setDir("LONG");
+$("shortBtn").onclick = () => setDir("SHORT");
 
 function fail(msg) {
   $("status").textContent = msg;
