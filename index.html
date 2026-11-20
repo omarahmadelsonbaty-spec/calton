@@ -1,403 +1,126 @@
 <!doctype html>
-<html lang="en">
+<html>
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Position</title>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>calc</title>
 <style>
-:root {
-  --bg: #ffffff;
-  --fg: #111111;
-  --muted: #6e6e73;
-  --line: #111111;
-  --hair: #d8d8dc;
-  --fill: #f2f2f4;
-  --green: #146c38;
-  --red: #b42318;
-  --sans: -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", "Helvetica Neue", sans-serif;
-  --mono: "SF Mono", ui-monospace, Menlo, Consolas, monospace;
-}
-
-* {
-  box-sizing: border-box;
-  border-radius: 0 !important;
-}
-
-body {
-  margin: 0;
-  padding: 40px 24px;
-  background: var(--bg);
-  color: var(--fg);
-  font: 400 14px/1.35 var(--sans);
-  -webkit-font-smoothing: antialiased;
-}
-
-main {
-  max-width: 720px;
-  margin: 0 auto;
-}
-
-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: baseline;
-  padding-bottom: 12px;
-  margin-bottom: 32px;
-  border-bottom: 2px solid var(--line);
-}
-
-h1 {
-  margin: 0;
-  font-size: 18px;
-  font-weight: 700;
-  letter-spacing: -0.02em;
-  text-transform: uppercase;
-}
-
-#status {
-  font: 600 11px/1 var(--mono);
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
-  color: var(--muted);
-}
-
-#status.err { color: var(--red); }
-
-.grid {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 48px;
-}
-
-@media (max-width: 640px) {
-  body { padding: 24px 16px; }
-  .grid { grid-template-columns: 1fr; gap: 32px; }
-}
-
-.segmented {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  border: 1px solid var(--line);
-  margin-bottom: 20px;
-}
-
-.segmented button {
-  height: 34px;
-  border: 0;
-  background: var(--bg);
-  color: var(--muted);
-  font: 700 12px/1 var(--mono);
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  cursor: pointer;
-}
-
-.segmented button + button {
-  border-left: 1px solid var(--line);
-}
-
-.segmented button[aria-pressed="true"][data-side="LONG"] {
-  background: var(--green);
-  color: var(--bg);
-}
-
-.segmented button[aria-pressed="true"][data-side="SHORT"] {
-  background: var(--red);
-  color: var(--bg);
-}
-
-.field { margin-bottom: 16px; }
-
-label {
-  display: block;
-  margin-bottom: 5px;
-  font: 700 10px/1 var(--mono);
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  color: var(--muted);
-}
-
-.box {
-  display: flex;
-  align-items: center;
-  height: 36px;
-  padding: 0 10px;
-  border: 1px solid var(--hair);
-  background: var(--bg);
-}
-
-.box:focus-within {
-  border-color: var(--line);
-  background: var(--fill);
-}
-
-input, select {
-  width: 100%;
-  border: 0;
-  outline: 0;
-  background: transparent;
-  color: var(--fg);
-  font: 500 14px/1 var(--sans);
-}
-
-input::placeholder {
-  color: #9e9ea4;
-  font-weight: 400;
-}
-
-input[type="number"] {
-  font-family: var(--mono);
-  font-variant-numeric: tabular-nums;
-}
-
-#symbol {
-  font-family: var(--mono);
-  font-weight: 700;
-  text-transform: uppercase;
-}
-
-.affix {
-  font: 600 12px/1 var(--mono);
-  color: var(--muted);
-  user-select: none;
-}
-
-.row2 {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 12px;
-}
-
-.hero {
-  padding-bottom: 16px;
-  border-bottom: 2px solid var(--line);
-}
-
-.hero-top {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  font: 700 10px/1 var(--mono);
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  color: var(--muted);
-}
-
-.hero-val {
-  margin-top: 8px;
-  display: flex;
-  align-items: baseline;
-  gap: 8px;
-}
-
-#qty {
-  font: 700 40px/1 var(--mono);
-  letter-spacing: -0.04em;
-  font-variant-numeric: tabular-nums;
-}
-
-#unit {
-  font: 600 11px/1 var(--mono);
-  text-transform: uppercase;
-  color: var(--muted);
-}
-
-dl { margin: 0; }
-
-dl div {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 12px 0;
-  border-bottom: 1px solid var(--hair);
-}
-
-dt {
-  font: 600 11px/1 var(--mono);
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
-  color: var(--muted);
-}
-
-dd {
-  margin: 0;
-  font: 600 13px/1 var(--mono);
-  font-variant-numeric: tabular-nums;
-}
-
-dd.loss { color: var(--red); }
-dd.gain { color: var(--green); }
+body{margin:16px;font:14px/1.35 Arial,sans-serif;background:#fff;color:#000}
+.wrap{max-width:680px;display:flex;gap:32px;flex-wrap:wrap}
+.col{flex:1;min-width:260px}
+.row{margin-bottom:10px}
+label{display:block;font-size:12px;margin-bottom:2px}
+input,select,button{font:inherit;padding:4px 6px}
+input,select{width:100%;box-sizing:border-box}
+.two{display:flex;gap:8px}
+.two>div{flex:1}
+#qty{font-size:28px;font-weight:bold;font-family:monospace}
+table{width:100%;border-collapse:collapse;margin-top:12px;font-family:monospace;font-size:13px}
+td{padding:5px 2px;border-bottom:1px solid #ccc}
+td:last-child{text-align:right}
+#status{font-size:12px;color:#555;margin-left:8px}
 </style>
 </head>
 <body>
-<main>
-  <header>
-    <h1>Position</h1>
-    <span id="status">Ready</span>
-  </header>
-
-  <div class="grid">
-    <section>
-      <div class="segmented">
-        <button type="button" data-side="LONG" aria-pressed="true">Long</button>
-        <button type="button" data-side="SHORT" aria-pressed="false">Short</button>
+<div><b>pos calc</b><span id="status"></span></div>
+<hr>
+<div class="wrap">
+  <div class="col">
+    <div class="row">
+      <button type="button" id="longBtn">LONG</button>
+      <button type="button" id="shortBtn">SHORT</button>
+    </div>
+    <div class="row"><label>symbol</label><input id="symbol" value="SPY"></div>
+    <div class="row"><label>entry (blank = market)</label><input id="entryIn" type="number" step="any" placeholder="market"></div>
+    <div class="row two">
+      <div><label>account $</label><input id="equity" type="number" step="any" value="10000"></div>
+      <div><label>risk %</label><input id="risk" type="number" step="any" value="1"></div>
+    </div>
+    <div class="row two">
+      <div><label>target R</label><input id="rr" type="number" step="any" value="2"></div>
+      <div><label>tf</label>
+        <select id="tf">
+          <option value="1m">1m</option>
+          <option value="5m">5m</option>
+          <option value="15m">15m</option>
+          <option value="30m">30m</option>
+          <option value="1h">1h</option>
+          <option value="4h">4h</option>
+          <option value="1d" selected>1d</option>
+          <option value="1w">1w</option>
+        </select>
       </div>
-
-      <div class="field">
-        <label for="symbol">Symbol</label>
-        <div class="box"><input id="symbol" value="SPY" autocomplete="off" spellcheck="false"></div>
-      </div>
-
-      <div class="field">
-        <label for="entry-in">Entry</label>
-        <div class="box"><span class="affix">$ </span><input id="entry-in" type="number" min="0" step="any" placeholder="Market"></div>
-      </div>
-
-      <div class="row2">
-        <div class="field">
-          <label for="equity">Account</label>
-          <div class="box"><span class="affix">$ </span><input id="equity" type="number" min="0" step="any" value="10000"></div>
-        </div>
-        <div class="field">
-          <label for="risk">Risk</label>
-          <div class="box"><input id="risk" type="number" min="0" max="100" step="any" value="1"><span class="affix"> %</span></div>
-        </div>
-      </div>
-
-      <div class="row2">
-        <div class="field">
-          <label for="rr">Target</label>
-          <div class="box"><input id="rr" type="number" min="0" step="any" value="2"><span class="affix"> R</span></div>
-        </div>
-        <div class="field">
-          <label for="tf">Timeframe</label>
-          <div class="box">
-            <select id="tf">
-              <option value="1m">1m</option>
-              <option value="5m">5m</option>
-              <option value="15m">15m</option>
-              <option value="30m">30m</option>
-              <option value="1h">1h</option>
-              <option value="4h">4h</option>
-              <option value="1d" selected>1D</option>
-              <option value="1w">1W</option>
-            </select>
-          </div>
-        </div>
-      </div>
-    </section>
-
-    <section>
-      <div class="hero">
-        <div class="hero-top">
-          <span>Size</span>
-          <span id="out-sym">SPY</span>
-        </div>
-        <div class="hero-val">
-          <span id="qty">—</span>
-          <span id="unit"></span>
-        </div>
-      </div>
-
-      <dl>
-        <div><dt>Entry</dt><dd id="entry">—</dd></div>
-        <div><dt>Stop</dt><dd id="stop">—</dd></div>
-        <div><dt>Target</dt><dd id="target">—</dd></div>
-        <div><dt>Risk</dt><dd id="max-loss" class="loss">—</dd></div>
-        <div><dt>Reward</dt><dd id="max-gain" class="gain">—</dd></div>
-        <div><dt>Notional</dt><dd id="notional">—</dd></div>
-      </dl>
-    </section>
+    </div>
   </div>
-</main>
+
+  <div class="col">
+    <div>qty (<span id="outSym">SPY</span>)</div>
+    <div><span id="qty">-</span> <span id="unit"></span></div>
+    <table>
+      <tr><td>entry</td><td id="entry">-</td></tr>
+      <tr><td>stop</td><td id="stop">-</td></tr>
+      <tr><td>target</td><td id="target">-</td></tr>
+      <tr><td>loss $</td><td id="loss">-</td></tr>
+      <tr><td>gain $</td><td id="gain">-</td></tr>
+      <tr><td>notional</td><td id="notional">-</td></tr>
+    </table>
+  </div>
+</div>
 
 <script>
-(() => {
-  const $ = id => document.getElementById(id);
-  let side = "LONG", timer, ctrl;
+const $=id=>document.getElementById(id);
+let dir="LONG", tmr, ctrl;
 
-  const usd = n => new Intl.NumberFormat("en-US", {
-    style: "currency",
-    currency: "USD",
-    minimumFractionDigits: 2,
-    maximumFractionDigits: Math.abs(n) < 1 ? 6 : 2
-  }).format(n);
+function setSide(s){
+  dir=s;
+  $("longBtn").style.fontWeight=s==="LONG"?"bold":"normal";
+  $("shortBtn").style.fontWeight=s==="SHORT"?"bold":"normal";
+  run();
+}
+$("longBtn").onclick=()=>setSide("LONG");
+$("shortBtn").onclick=()=>setSide("SHORT");
+setSide("LONG");
 
-  const num = (n, d = 6) => Number(n).toLocaleString("en-US", { maximumFractionDigits: d });
+function err(m){
+  $("status").textContent=m;
+  ["qty","unit","entry","stop","target","loss","gain","notional"].forEach(i=>$(i).textContent="-");
+}
 
-  function setErr(msg) {
-    $("status").textContent = msg;
-    $("status").className = "err";
-    ["qty", "entry", "stop", "target", "max-loss", "max-gain", "notional"].forEach(id => $(id).textContent = "—");
-    $("unit").textContent = "";
-  }
+async function run(){
+  ctrl?.abort(); ctrl=new AbortController();
+  const symbol=$("symbol").value.trim().toUpperCase();
+  const equity=Number($("equity").value);
+  const risk_pct=Number($("risk").value);
+  const rr=Number($("rr").value);
+  const rawE=$("entryIn").value.trim();
+  const entry_price=rawE===""?null:Number(rawE);
+  if(!symbol||!(equity>0)||!(risk_pct>0)||!(rr>0)||(entry_price!==null&&!(entry_price>0))) return err("bad input");
+  $("status").textContent="...";
+  try{
+    const r=await fetch("/api/calc",{
+      method:"POST",
+      headers:{"Content-Type":"application/json"},
+      body:JSON.stringify({symbol,direction:dir,equity,risk_pct,rr,timeframe:$("tf").value,entry_price}),
+      signal:ctrl.signal
+    });
+    const d=await r.json();
+    if(!r.ok) return err(d.detail||"err");
+    $("outSym").textContent=d.symbol;
+    $("qty").textContent=d.quantity;
+    $("unit").textContent=d.unit;
+    $("entry").textContent=d.entry;
+    $("stop").textContent=d.stop+" ("+d.stop_pct+"%)";
+    $("target").textContent=d.target;
+    $("loss").textContent=d.risk_at_size;
+    $("gain").textContent=d.reward_at_target;
+    $("notional").textContent=d.notional;
+    $("status").textContent=new Date(d.priced_at).toLocaleTimeString();
+  }catch(e){if(e.name!=="AbortError")err("fail");}
+}
 
-  async function calc() {
-    ctrl?.abort();
-    ctrl = new AbortController();
-
-    const sym = $("symbol").value.trim().toUpperCase();
-    const equity = Number($("equity").value);
-    const risk_pct = Number($("risk").value);
-    const rr = Number($("rr").value);
-    const entryRaw = $("entry-in").value.trim();
-    const entry_price = entryRaw === "" ? null : Number(entryRaw);
-
-    if (!sym) return setErr("Enter symbol");
-    if (!(equity > 0) || !(risk_pct > 0 && risk_pct <= 100) || !(rr > 0)) return setErr("Invalid inputs");
-    if (entry_price !== null && !(entry_price > 0)) return setErr("Invalid entry");
-
-    $("status").textContent = "Calculating";
-    $("status").className = "";
-
-    try {
-      const res = await fetch("/api/calc", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          symbol: sym,
-          direction: side,
-          equity,
-          risk_pct,
-          rr,
-          timeframe: $("tf").value,
-          entry_price
-        }),
-        signal: ctrl.signal
-      });
-      const d = await res.json();
-      if (!res.ok) return setErr(d.detail || "Unavailable");
-
-      $("out-sym").textContent = d.symbol;
-      $("qty").textContent = num(d.quantity, 6);
-      $("unit").textContent = d.unit;
-      $("entry").textContent = usd(d.entry);
-      $("stop").textContent = `${usd(d.stop)} (${d.stop_pct}%)`;
-      $("target").textContent = usd(d.target);
-      $("max-loss").textContent = usd(d.risk_at_size);
-      $("max-gain").textContent = usd(d.reward_at_target);
-      $("notional").textContent = usd(d.notional);
-      $("status").textContent = new Date(d.priced_at).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
-    } catch (e) {
-      if (e.name !== "AbortError") setErr("Offline");
-    }
-  }
-
-  const sched = () => { clearTimeout(timer); timer = setTimeout(calc, 180); };
-
-  document.querySelectorAll("[data-side]").forEach(b => b.addEventListener("click", () => {
-    side = b.dataset.side;
-    document.querySelectorAll("[data-side]").forEach(x => x.setAttribute("aria-pressed", String(x === b)));
-    calc();
-  }));
-
-  ["symbol", "entry-in", "equity", "risk", "rr", "tf"].forEach(id => {
-    $(id).addEventListener("input", sched);
-    $(id).addEventListener("change", calc);
-  });
-
-  calc();
-})();
+const sched=()=>{clearTimeout(tmr);tmr=setTimeout(run,150);};
+["symbol","entryIn","equity","risk","rr","tf"].forEach(i=>{$(i).oninput=sched;$(i).onchange=run;});
+run();
 </script>
 </body>
 </html>
