@@ -1,44 +1,175 @@
 <!doctype html>
-<html>
+<html lang="en">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>calc</title>
+<title>pos</title>
 <style>
-body{margin:16px;font:14px/1.35 Arial,sans-serif;background:#fff;color:#000}
-.wrap{max-width:680px;display:flex;gap:32px;flex-wrap:wrap}
-.col{flex:1;min-width:260px}
-.row{margin-bottom:10px}
-label{display:block;font-size:12px;margin-bottom:2px}
-input,select,button{font:inherit;padding:4px 6px}
-input,select{width:100%;box-sizing:border-box}
-.two{display:flex;gap:8px}
-.two>div{flex:1}
-#qty{font-size:28px;font-weight:bold;font-family:monospace}
-table{width:100%;border-collapse:collapse;margin-top:12px;font-family:monospace;font-size:13px}
-td{padding:5px 2px;border-bottom:1px solid #ccc}
-td:last-child{text-align:right}
-#status{font-size:12px;color:#555;margin-left:8px}
+body {
+  margin: 24px;
+  background: #fafafa;
+  color: #141414;
+  font-family: Arial, Helvetica, sans-serif;
+  font-size: 14px;
+}
+.wrap {
+  max-width: 700px;
+  display: flex;
+  gap: 36px;
+  flex-wrap: wrap;
+}
+.col {
+  flex: 1 1 280px;
+}
+h1 {
+  margin: 0 0 16px;
+  font-size: 16px;
+  font-weight: 700;
+}
+#status {
+  margin-left: 10px;
+  font-size: 12px;
+  color: #666;
+  font-family: Consolas, monospace;
+}
+.side {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 14px;
+}
+.side button {
+  flex: 1;
+  padding: 7px 10px;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+  border: 1px solid #999;
+  background: #fff;
+  color: #141414;
+}
+.side button.on-long {
+  background: #1b6e3c;
+  border-color: #1b6e3c;
+  color: #fff;
+}
+.side button.on-short {
+  background: #a62626;
+  border-color: #a62626;
+  color: #fff;
+}
+.field {
+  margin-bottom: 12px;
+}
+label {
+  display: block;
+  margin-bottom: 3px;
+  font-size: 12px;
+  color: #444;
+}
+input, select {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 6px 8px;
+  font-size: 14px;
+  background: #fff;
+  color: #141414;
+  border: 1px solid #aaa;
+}
+input[type="number"] {
+  font-family: Consolas, monospace;
+}
+#symbol {
+  font-family: Consolas, monospace;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+.row {
+  display: flex;
+  gap: 10px;
+}
+.row .field {
+  flex: 1;
+}
+.qty-box {
+  padding: 10px 12px;
+  background: #fff;
+  border: 1px solid #aaa;
+  margin-bottom: 12px;
+}
+.qty-lbl {
+  font-size: 12px;
+  color: #555;
+}
+#qty {
+  font-family: Consolas, monospace;
+  font-size: 32px;
+  font-weight: 700;
+}
+#unit {
+  font-family: Consolas, monospace;
+  font-size: 12px;
+  color: #555;
+  margin-left: 6px;
+}
+table {
+  width: 100%;
+  border-collapse: collapse;
+  background: #fff;
+  border: 1px solid #aaa;
+  font-family: Consolas, monospace;
+  font-size: 13px;
+}
+td {
+  padding: 7px 10px;
+  border-bottom: 1px solid #e0e0e0;
+}
+tr:last-child td {
+  border-bottom: 0;
+}
+td:last-child {
+  text-align: right;
+  font-weight: 700;
+}
 </style>
 </head>
 <body>
-<div><b>pos calc</b><span id="status"></span></div>
-<hr>
+<h1>pos<span id="status"></span></h1>
+
 <div class="wrap">
   <div class="col">
+    <div class="side">
+      <button type="button" id="btnLong">LONG</button>
+      <button type="button" id="btnShort">SHORT</button>
+    </div>
+
+    <div class="field">
+      <label for="symbol">symbol</label>
+      <input id="symbol" value="SPY" autocomplete="off" spellcheck="false">
+    </div>
+
+    <div class="field">
+      <label for="entryIn">entry (blank = market)</label>
+      <input id="entryIn" type="number" step="any" placeholder="market">
+    </div>
+
     <div class="row">
-      <button type="button" id="longBtn">LONG</button>
-      <button type="button" id="shortBtn">SHORT</button>
+      <div class="field">
+        <label for="equity">account ($)</label>
+        <input id="equity" type="number" step="any" value="10000">
+      </div>
+      <div class="field">
+        <label for="risk">risk (%)</label>
+        <input id="risk" type="number" step="any" value="1">
+      </div>
     </div>
-    <div class="row"><label>symbol</label><input id="symbol" value="SPY"></div>
-    <div class="row"><label>entry (blank = market)</label><input id="entryIn" type="number" step="any" placeholder="market"></div>
-    <div class="row two">
-      <div><label>account $</label><input id="equity" type="number" step="any" value="10000"></div>
-      <div><label>risk %</label><input id="risk" type="number" step="any" value="1"></div>
-    </div>
-    <div class="row two">
-      <div><label>target R</label><input id="rr" type="number" step="any" value="2"></div>
-      <div><label>tf</label>
+
+    <div class="row">
+      <div class="field">
+        <label for="rr">target (R)</label>
+        <input id="rr" type="number" step="any" value="2">
+      </div>
+      <div class="field">
+        <label for="tf">timeframe</label>
         <select id="tf">
           <option value="1m">1m</option>
           <option value="5m">5m</option>
@@ -54,73 +185,104 @@ td:last-child{text-align:right}
   </div>
 
   <div class="col">
-    <div>qty (<span id="outSym">SPY</span>)</div>
-    <div><span id="qty">-</span> <span id="unit"></span></div>
+    <div class="qty-box">
+      <div class="qty-lbl">size (<span id="outSym">SPY</span>)</div>
+      <span id="qty">-</span><span id="unit"></span>
+    </div>
+
     <table>
       <tr><td>entry</td><td id="entry">-</td></tr>
       <tr><td>stop</td><td id="stop">-</td></tr>
       <tr><td>target</td><td id="target">-</td></tr>
-      <tr><td>loss $</td><td id="loss">-</td></tr>
-      <tr><td>gain $</td><td id="gain">-</td></tr>
+      <tr><td>max loss</td><td id="loss">-</td></tr>
+      <tr><td>max gain</td><td id="gain">-</td></tr>
       <tr><td>notional</td><td id="notional">-</td></tr>
     </table>
   </div>
 </div>
 
 <script>
-const $=id=>document.getElementById(id);
-let dir="LONG", tmr, ctrl;
+const $ = id => document.getElementById(id);
+let dir = "LONG", timer, abortCtrl;
 
-function setSide(s){
-  dir=s;
-  $("longBtn").style.fontWeight=s==="LONG"?"bold":"normal";
-  $("shortBtn").style.fontWeight=s==="SHORT"?"bold":"normal";
-  run();
-}
-$("longBtn").onclick=()=>setSide("LONG");
-$("shortBtn").onclick=()=>setSide("SHORT");
-setSide("LONG");
-
-function err(m){
-  $("status").textContent=m;
-  ["qty","unit","entry","stop","target","loss","gain","notional"].forEach(i=>$(i).textContent="-");
+function setDir(next) {
+  dir = next;
+  $("btnLong").className = dir === "LONG" ? "on-long" : "";
+  $("btnShort").className = dir === "SHORT" ? "on-short" : "";
+  calc();
 }
 
-async function run(){
-  ctrl?.abort(); ctrl=new AbortController();
-  const symbol=$("symbol").value.trim().toUpperCase();
-  const equity=Number($("equity").value);
-  const risk_pct=Number($("risk").value);
-  const rr=Number($("rr").value);
-  const rawE=$("entryIn").value.trim();
-  const entry_price=rawE===""?null:Number(rawE);
-  if(!symbol||!(equity>0)||!(risk_pct>0)||!(rr>0)||(entry_price!==null&&!(entry_price>0))) return err("bad input");
-  $("status").textContent="...";
-  try{
-    const r=await fetch("/api/calc",{
-      method:"POST",
-      headers:{"Content-Type":"application/json"},
-      body:JSON.stringify({symbol,direction:dir,equity,risk_pct,rr,timeframe:$("tf").value,entry_price}),
-      signal:ctrl.signal
+$("btnLong").onclick = () => setDir("LONG");
+$("btnShort").onclick = () => setDir("SHORT");
+
+function fail(msg) {
+  $("status").textContent = msg;
+  ["qty", "unit", "entry", "stop", "target", "loss", "gain", "notional"].forEach(id => {
+    $(id).textContent = "-";
+  });
+}
+
+async function calc() {
+  abortCtrl?.abort();
+  abortCtrl = new AbortController();
+
+  const symbol = $("symbol").value.trim().toUpperCase();
+  const equity = Number($("equity").value);
+  const risk_pct = Number($("risk").value);
+  const rr = Number($("rr").value);
+  const rawEntry = $("entryIn").value.trim();
+  const entry_price = rawEntry === "" ? null : Number(rawEntry);
+
+  if (!symbol || !(equity > 0) || !(risk_pct > 0) || !(rr > 0) || (entry_price !== null && !(entry_price > 0))) {
+    return fail("bad input");
+  }
+
+  $("status").textContent = "calc...";
+
+  try {
+    const res = await fetch("/api/calc", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        symbol,
+        direction: dir,
+        equity,
+        risk_pct,
+        rr,
+        timeframe: $("tf").value,
+        entry_price
+      }),
+      signal: abortCtrl.signal
     });
-    const d=await r.json();
-    if(!r.ok) return err(d.detail||"err");
-    $("outSym").textContent=d.symbol;
-    $("qty").textContent=d.quantity;
-    $("unit").textContent=d.unit;
-    $("entry").textContent=d.entry;
-    $("stop").textContent=d.stop+" ("+d.stop_pct+"%)";
-    $("target").textContent=d.target;
-    $("loss").textContent=d.risk_at_size;
-    $("gain").textContent=d.reward_at_target;
-    $("notional").textContent=d.notional;
-    $("status").textContent=new Date(d.priced_at).toLocaleTimeString();
-  }catch(e){if(e.name!=="AbortError")err("fail");}
+    const d = await res.json();
+    if (!res.ok) return fail(d.detail || "err");
+
+    $("outSym").textContent = d.symbol;
+    $("qty").textContent = d.quantity;
+    $("unit").textContent = d.unit;
+    $("entry").textContent = "$" + d.entry;
+    $("stop").textContent = "$" + d.stop + " (" + d.stop_pct + "%)";
+    $("target").textContent = "$" + d.target;
+    $("loss").textContent = "-$" + d.risk_at_size;
+    $("gain").textContent = "+$" + d.reward_at_target;
+    $("notional").textContent = "$" + d.notional;
+    $("status").textContent = new Date(d.priced_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" });
+  } catch (err) {
+    if (err.name !== "AbortError") fail("offline");
+  }
 }
 
-const sched=()=>{clearTimeout(tmr);tmr=setTimeout(run,150);};
-["symbol","entryIn","equity","risk","rr","tf"].forEach(i=>{$(i).oninput=sched;$(i).onchange=run;});
-run();
+function schedule() {
+  clearTimeout(timer);
+  timer = setTimeout(calc, 150);
+}
+
+["symbol", "entryIn", "equity", "risk", "rr", "tf"].forEach(id => {
+  $(id).addEventListener("input", schedule);
+  $(id).addEventListener("change", calc);
+});
+
+setDir("LONG");
 </script>
 </body>
 </html>
