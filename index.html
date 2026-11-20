@@ -77,6 +77,9 @@ html, body {
 .field {
   margin-bottom: 14px;
 }
+.sym-wrap {
+  position: relative;
+}
 label {
   display: block;
   margin-bottom: 4px;
@@ -92,6 +95,43 @@ input, select {
   background: #ffffff;
   border: 1px solid #888888;
   border-radius: 0;
+}
+#drop {
+  display: none;
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  z-index: 20;
+  max-height: 220px;
+  overflow-y: auto;
+  background: #ffffff;
+  border: 1px solid #888888;
+  border-top: 0;
+}
+#drop.open {
+  display: block;
+}
+.opt {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 7px 9px;
+  cursor: pointer;
+  border-bottom: 1px solid #eeeeee;
+  font-size: 13px;
+}
+.opt:last-child {
+  border-bottom: 0;
+}
+.opt:hover, .opt.sel {
+  background: #eeeeee;
+}
+.opt-name {
+  color: #555555;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 .pair {
   display: flex;
@@ -154,7 +194,10 @@ td:last-child {
 
       <div class="field">
         <label for="symbol">Symbol</label>
-        <input id="symbol" value="SPY" autocomplete="off" spellcheck="false">
+        <div class="sym-wrap">
+          <input id="symbol" value="SPY" autocomplete="off" spellcheck="false">
+          <div id="drop"></div>
+        </div>
       </div>
 
       <div class="field">
@@ -214,7 +257,90 @@ td:last-child {
 
 <script>
 const $ = id => document.getElementById(id);
-let dir = "LONG", timer, abortCtrl;
+const SYMBOLS = [
+  ["SPY", "SPDR S&P 500 ETF"],
+  ["QQQ", "Invesco QQQ Trust"],
+  ["AAPL", "Apple"],
+  ["MSFT", "Microsoft"],
+  ["NVDA", "NVIDIA"],
+  ["AMZN", "Amazon"],
+  ["META", "Meta"],
+  ["TSLA", "Tesla"],
+  ["AMD", "AMD"],
+  ["DIA", "SPDR Dow Jones ETF"],
+  ["IWM", "iShares Russell 2000 ETF"],
+  ["BTC-USD", "Bitcoin"],
+  ["ETH-USD", "Ethereum"],
+  ["SOL-USD", "Solana"],
+  ["EURUSD=X", "EUR/USD"],
+  ["GBPUSD=X", "GBP/USD"],
+  ["USDJPY=X", "USD/JPY"],
+  ["ES=F", "E-mini S&P 500"],
+  ["MES=F", "Micro E-mini S&P 500"],
+  ["NQ=F", "E-mini Nasdaq 100"],
+  ["MNQ=F", "Micro E-mini Nasdaq 100"],
+  ["RTY=F", "E-mini Russell 2000"],
+  ["M2K=F", "Micro E-mini Russell 2000"],
+  ["YM=F", "E-mini Dow"],
+  ["MYM=F", "Micro E-mini Dow"],
+  ["CL=F", "Crude Oil WTI"],
+  ["MCL=F", "Micro Crude Oil WTI"],
+  ["GC=F", "Gold"],
+  ["MGC=F", "Micro Gold"],
+  ["SI=F", "Silver"],
+  ["^GSPC", "S&P 500 Index"],
+  ["^NDX", "Nasdaq 100 Index"],
+  ["^DJI", "Dow Jones Index"],
+  ["^VIX", "VIX"]
+];
+
+let dir = "LONG", timer, abortCtrl, filtered = [], selIdx = -1;
+
+function closeDrop() {
+  $("drop").className = "";
+  $("drop").innerHTML = "";
+  filtered = [];
+  selIdx = -1;
+}
+
+function pickSymbol(sym) {
+  $("symbol").value = sym;
+  closeDrop();
+  calc();
+}
+
+function renderDrop(q) {
+  const clean = q.trim().toUpperCase();
+  if (!clean) return closeDrop();
+  filtered = SYMBOLS.filter(([s, n]) => s.includes(clean) || n.toUpperCase().includes(clean)).slice(0, 25);
+  selIdx = -1;
+  if (!filtered.length) return closeDrop();
+
+  const drop = $("drop");
+  drop.innerHTML = "";
+  filtered.forEach(([s, n], i) => {
+    const row = document.createElement("div");
+    row.className = "opt";
+    row.innerHTML = `<span>${s}</span><span class="opt-name">${n}</span>`;
+    row.onpointerdown = e => {
+      e.preventDefault();
+      pickSymbol(s);
+    };
+    row.onmouseenter = () => {
+      selIdx = i;
+      highlight();
+    };
+    drop.appendChild(row);
+  });
+  drop.className = "open";
+}
+
+function highlight() {
+  [...$("drop").children].forEach((el, i) => {
+    el.classList.toggle("sel", i === selIdx);
+    if (i === selIdx) el.scrollIntoView({ block: "nearest" });
+  });
+}
 
 function setDir(next) {
   dir = next;
@@ -288,7 +414,38 @@ function schedule() {
   timer = setTimeout(calc, 150);
 }
 
-["symbol", "entryIn", "equity", "risk", "rr", "tf"].forEach(id => {
+$("symbol").addEventListener("input", () => {
+  renderDrop($("symbol").value);
+  schedule();
+});
+
+$("symbol").addEventListener("focus", () => {
+  renderDrop($("symbol").value);
+});
+
+$("symbol").addEventListener("keydown", e => {
+  if (!$("drop").classList.contains("open")) return;
+  if (e.key === "ArrowDown") {
+    e.preventDefault();
+    selIdx = (selIdx + 1) % filtered.length;
+    highlight();
+  } else if (e.key === "ArrowUp") {
+    e.preventDefault();
+    selIdx = (selIdx - 1 + filtered.length) % filtered.length;
+    highlight();
+  } else if (e.key === "Enter" && selIdx >= 0) {
+    e.preventDefault();
+    pickSymbol(filtered[selIdx][0]);
+  } else if (e.key === "Escape") {
+    closeDrop();
+  }
+});
+
+document.addEventListener("pointerdown", e => {
+  if (!e.target.closest(".sym-wrap")) closeDrop();
+});
+
+["entryIn", "equity", "risk", "rr", "tf"].forEach(id => {
   $(id).addEventListener("input", schedule);
   $(id).addEventListener("change", calc);
 });
