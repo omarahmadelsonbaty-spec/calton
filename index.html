@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>calton</title>
+<title>pos</title>
 <style>
 html, body {
   margin: 0;
@@ -181,7 +181,7 @@ td:last-child {
 <body>
 <div class="app">
   <div class="top">
-    <span class="title">calton</span>
+    <span class="title">pos</span>
     <span id="status"></span>
   </div>
 
@@ -257,44 +257,7 @@ td:last-child {
 
 <script>
 const $ = id => document.getElementById(id);
-const SYMBOLS = [
-  ["SPY", "SPDR S&P 500 ETF"],
-  ["QQQ", "Invesco QQQ Trust"],
-  ["AAPL", "Apple"],
-  ["MSFT", "Microsoft"],
-  ["NVDA", "NVIDIA"],
-  ["AMZN", "Amazon"],
-  ["META", "Meta"],
-  ["TSLA", "Tesla"],
-  ["AMD", "AMD"],
-  ["DIA", "SPDR Dow Jones ETF"],
-  ["IWM", "iShares Russell 2000 ETF"],
-  ["BTC-USD", "Bitcoin"],
-  ["ETH-USD", "Ethereum"],
-  ["SOL-USD", "Solana"],
-  ["EURUSD=X", "EUR/USD"],
-  ["GBPUSD=X", "GBP/USD"],
-  ["USDJPY=X", "USD/JPY"],
-  ["ES=F", "E-mini S&P 500"],
-  ["MES=F", "Micro E-mini S&P 500"],
-  ["NQ=F", "E-mini Nasdaq 100"],
-  ["MNQ=F", "Micro E-mini Nasdaq 100"],
-  ["RTY=F", "E-mini Russell 2000"],
-  ["M2K=F", "Micro E-mini Russell 2000"],
-  ["YM=F", "E-mini Dow"],
-  ["MYM=F", "Micro E-mini Dow"],
-  ["CL=F", "Crude Oil WTI"],
-  ["MCL=F", "Micro Crude Oil WTI"],
-  ["GC=F", "Gold"],
-  ["MGC=F", "Micro Gold"],
-  ["SI=F", "Silver"],
-  ["^GSPC", "S&P 500 Index"],
-  ["^NDX", "Nasdaq 100 Index"],
-  ["^DJI", "Dow Jones Index"],
-  ["^VIX", "VIX"]
-];
-
-let dir = "LONG", timer, abortCtrl, filtered = [], selIdx = -1;
+let dir = "LONG", timer, searchTimer, abortCtrl, searchCtrl, filtered = [], selIdx = -1;
 
 function closeDrop() {
   $("drop").className = "";
@@ -309,37 +272,47 @@ function pickSymbol(sym) {
   calc();
 }
 
-function renderDrop(q) {
-  const clean = q.trim().toUpperCase();
-  if (!clean) return closeDrop();
-  filtered = SYMBOLS.filter(([s, n]) => s.includes(clean) || n.toUpperCase().includes(clean)).slice(0, 25);
-  selIdx = -1;
-  if (!filtered.length) return closeDrop();
-
-  const drop = $("drop");
-  drop.innerHTML = "";
-  filtered.forEach(([s, n], i) => {
-    const row = document.createElement("div");
-    row.className = "opt";
-    row.innerHTML = `<span>${s}</span><span class="opt-name">${n}</span>`;
-    row.onpointerdown = e => {
-      e.preventDefault();
-      pickSymbol(s);
-    };
-    row.onmouseenter = () => {
-      selIdx = i;
-      highlight();
-    };
-    drop.appendChild(row);
-  });
-  drop.className = "open";
-}
-
 function highlight() {
   [...$("drop").children].forEach((el, i) => {
     el.classList.toggle("sel", i === selIdx);
     if (i === selIdx) el.scrollIntoView({ block: "nearest" });
   });
+}
+
+async function renderDrop(q) {
+  searchCtrl?.abort();
+  const clean = q.trim().toUpperCase();
+  if (!clean) return closeDrop();
+
+  searchCtrl = new AbortController();
+  try {
+    const res = await fetch(`/api/tickers?q=${encodeURIComponent(clean)}&limit=50`, { signal: searchCtrl.signal });
+    if (!res.ok) return closeDrop();
+    const rows = await res.json();
+    filtered = rows.map(r => [r.symbol, r.name]);
+    selIdx = -1;
+    if (!filtered.length) return closeDrop();
+
+    const drop = $("drop");
+    drop.innerHTML = "";
+    filtered.forEach(([s, n], i) => {
+      const row = document.createElement("div");
+      row.className = "opt";
+      row.innerHTML = `<span>${s}</span><span class="opt-name">${n}</span>`;
+      row.onpointerdown = e => {
+        e.preventDefault();
+        pickSymbol(s);
+      };
+      row.onmouseenter = () => {
+        selIdx = i;
+        highlight();
+      };
+      drop.appendChild(row);
+    });
+    drop.className = "open";
+  } catch (e) {
+    if (e.name !== "AbortError") closeDrop();
+  }
 }
 
 function setDir(next) {
@@ -415,7 +388,8 @@ function schedule() {
 }
 
 $("symbol").addEventListener("input", () => {
-  renderDrop($("symbol").value);
+  clearTimeout(searchTimer);
+  searchTimer = setTimeout(() => renderDrop($("symbol").value), 80);
   schedule();
 });
 
