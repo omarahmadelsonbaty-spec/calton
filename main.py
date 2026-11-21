@@ -1,4 +1,5 @@
 import asyncio
+import json
 import logging
 import math
 import re
@@ -18,25 +19,31 @@ logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s: %(mes
 log = logging.getLogger("calton")
 
 BASE_DIR = Path(__file__).resolve().parent
+TICKER_CACHE_FILE = BASE_DIR / "tickers_cache.json"
+
 SYMBOL_RE = re.compile(r"^[A-Z0-9^][A-Z0-9^.=\-]{0,20}$")
 PLAIN_TICKER_RE = re.compile(r"^[A-Z0-9]+(?:-[A-Z0-9]+)?$")
 
 REFRESH_OK_SECONDS = 24 * 60 * 60
-REFRESH_ERR_SECONDS = 300
+REFRESH_ERR_SECONDS = 120
 MARKET_CACHE_TTL_SECONDS = 15.0
 
 NASDAQ_URLS = (
     ("https://www.nasdaqtrader.com/dynamic/SymDir/nasdaqlisted.txt", "Symbol"),
     ("https://www.nasdaqtrader.com/dynamic/SymDir/otherlisted.txt", "ACT Symbol"),
 )
+SEC_COMPANY_TICKERS_URL = "https://www.sec.gov/files/company_tickers.json"
 
 CORE_TICKERS = {
     "SPY": "SPDR S&P 500 ETF",
     "QQQ": "Invesco QQQ Trust",
     "DIA": "SPDR Dow Jones ETF",
     "IWM": "iShares Russell 2000 ETF",
+    "VOO": "Vanguard S&P 500 ETF",
+    "VTI": "Vanguard Total Stock Market ETF",
     "AAPL": "Apple",
     "ABBV": "AbbVie",
+    "ABT": "Abbott Laboratories",
     "ACN": "Accenture",
     "ADBE": "Adobe",
     "AMD": "AMD",
@@ -44,13 +51,42 @@ CORE_TICKERS = {
     "AVGO": "Broadcom",
     "BA": "Boeing",
     "BAC": "Bank of America",
-    "META": "Meta",
+    "BRK-B": "Berkshire Hathaway Class B",
+    "CRM": "Salesforce",
+    "COST": "Costco",
+    "CVX": "Chevron",
+    "DIS": "Walt Disney",
+    "GOOGL": "Alphabet Class A",
+    "GOOG": "Alphabet Class C",
+    "HD": "Home Depot",
+    "INTC": "Intel",
+    "JNJ": "Johnson & Johnson",
+    "JPM": "JPMorgan Chase",
+    "KO": "Coca-Cola",
+    "LLY": "Eli Lilly",
+    "MA": "Mastercard",
+    "MCD": "McDonald's",
+    "META": "Meta Platforms",
+    "MRK": "Merck",
     "MSFT": "Microsoft",
+    "NFLX": "Netflix",
     "NVDA": "NVIDIA",
+    "ORCL": "Oracle",
+    "PEP": "PepsiCo",
+    "PG": "Procter & Gamble",
+    "PLTR": "Palantir Technologies",
+    "SMCI": "Super Micro Computer",
+    "TMO": "Thermo Fisher Scientific",
     "TSLA": "Tesla",
+    "UNH": "UnitedHealth",
+    "V": "Visa",
+    "WMT": "Walmart",
+    "XOM": "Exxon Mobil",
     "BTC-USD": "Bitcoin",
     "ETH-USD": "Ethereum",
     "SOL-USD": "Solana",
+    "XRP-USD": "XRP",
+    "DOGE-USD": "Dogecoin",
     "EURUSD=X": "EUR/USD",
     "GBPUSD=X": "GBP/USD",
     "USDJPY=X": "USD/JPY",
@@ -70,6 +106,7 @@ CORE_TICKERS = {
     "^GSPC": "S&P 500 Index",
     "^NDX": "Nasdaq 100 Index",
     "^DJI": "Dow Jones Index",
+    "^RUT": "Russell 2000 Index",
     "^VIX": "VIX",
 }
 
@@ -94,8 +131,31 @@ TIMEFRAMES = {
     "1w": ("2y", "1wk"),
 }
 
-_tickers: list[tuple[str, str]] = sorted(CORE_TICKERS.items())
-_tickers_ready = asyncio.Event()
+
+def _load_disk_cache() -> dict[str, str]:
+    merged = dict(CORE_TICKERS)
+    if TICKER_CACHE_FILE.exists():
+        try:
+            data = json.loads(TICKER_CACHE_FILE.read_text(encoding="utf-8"))
+            if isinstance(data, dict):
+                for k, v in data.items():
+                    if isinstance(k, str) and isinstance(v, str):
+                        merged[k.strip().upper()] = v.strip()
+        except Exception as exc:
+            log.warning("Failed reading %s: %s", TICKER_CACHE_FILE, exc)
+    merged.update(CORE_TICKERS)
+    return merged
+
+
+def _save_disk_cache(mapping: dict[str, str]) -> None:
+    try:
+        TICKER_CACHE_FILE.write_text(json.dumps(mapping), encoding="utf-8")
+    except Exception as exc:
+        log.warning("Failed writing %s: %s", TICKER_CACHE_FILE, exc)
+
+
+_ticker_map: dict[str, str] = _load_disk_cache()
+_tickers: list[tuple[str, str]] = sorted(_ticker_map.items())
 _market_cache: dict[tuple[str, str], tuple[float, Optional[float], object]] = {}
 
 
@@ -125,30 +185,58 @@ def parse_directory(raw: str, sym_col: str) -> dict[str, str]:
     return out
 
 
+def parse_sec_tickers(payload: object) -> dict[str, str]:
+    if not isinstance(payload, dict):
+        return {}
+    out: dict[str, str] = {}
+    for row in payload.values():
+        if not isinstance(row, dict):
+            continue
+        raw_sym = str(row.get("ticker", "")).strip().upper().replace(".", "-")
+        title = str(row.get("title", "")).strip()
+        if raw_sym and PLAIN_TICKER_RE.match(raw_sym):
+            out[raw_sym] = title or raw_sym
+    return out
+
+
 async def refresh_tickers() -> bool:
-    global _tickers
-    merged = dict(CORE_TICKERS)
-    ok = True
+    global _ticker_map, _tickers
+    merged = dict(_ticker_map)
+    any_success = False
 
     async with httpx.AsyncClient(
-        timeout=15.0,
+        timeout=20.0,
         follow_redirects=True,
-        headers={"User-Agent": "Mozilla/5.0"},
+        headers={"User-Agent": "calton-app/1.0 (contact@local.dev)"},
     ) as client:
         for url, col in NASDAQ_URLS:
             try:
                 res = await client.get(url)
                 res.raise_for_status()
-                merged.update(parse_directory(res.text, col))
+                parsed = parse_directory(res.text, col)
+                if parsed:
+                    merged.update(parsed)
+                    any_success = True
             except Exception as exc:
-                ok = False
                 log.warning("Ticker fetch failed (%s): %s", url, exc)
 
+        try:
+            res = await client.get(SEC_COMPANY_TICKERS_URL)
+            res.raise_for_status()
+            sec_parsed = parse_sec_tickers(res.json())
+            if sec_parsed:
+                merged.update(sec_parsed)
+                any_success = True
+        except Exception as exc:
+            log.warning("SEC ticker fetch failed (%s): %s", SEC_COMPANY_TICKERS_URL, exc)
+
     merged.update(CORE_TICKERS)
+    _ticker_map = merged
     _tickers = sorted(merged.items())
-    _tickers_ready.set()
-    log.info("Loaded %d symbols (ok=%s)", len(_tickers), ok)
-    return ok
+    if any_success:
+        _save_disk_cache(merged)
+    log.info("Loaded %d symbols (synced=%s)", len(_tickers), any_success)
+    return any_success
 
 
 async def ticker_loop():
