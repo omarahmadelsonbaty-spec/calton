@@ -16,9 +16,9 @@
   --pad-x: clamp(24px, 4vw, 64px);
   --pad-y: clamp(20px, 3.5vh, 48px);
   --gap-main: clamp(28px, 4.5vw, 72px);
-  --fs-base: clamp(14px, 1.05vw, 18px);
-  --fs-sm: clamp(12.5px, 0.9vw, 15px);
-  --fs-title: clamp(16px, 1.25vw, 22px);
+  --fs-base: clamp(14.5px, 1.08vw, 18.5px);
+  --fs-sm: clamp(13px, 0.92vw, 15.5px);
+  --fs-title: clamp(16.5px, 1.25vw, 22px);
   --fs-qty: clamp(32px, 3.6vw, 56px);
 }
 html, body {
@@ -69,12 +69,12 @@ html, body {
 }
 .sides {
   display: flex;
-  gap: clamp(8px, 0.9vw, 14px);
+  gap: clamp(10px, 1.1vw, 18px);
   margin-bottom: clamp(14px, 1.8vh, 24px);
 }
 .sides button {
   flex: 1;
-  padding: clamp(9px, 1.1vh, 14px) clamp(12px, 1.2vw, 18px);
+  padding: clamp(10px, 1.2vh, 16px) clamp(14px, 1.4vw, 22px);
   font-family: Arial, Helvetica, sans-serif;
   font-size: var(--fs-base);
   border: 1px solid var(--line);
@@ -93,6 +93,21 @@ html, body {
   border-color: var(--short);
   color: #ffffff;
 }
+.row-split {
+  display: flex;
+  gap: clamp(12px, 1.4vw, 22px);
+  margin-bottom: clamp(14px, 1.8vh, 24px);
+}
+.row-split > .field {
+  flex: 1;
+  margin-bottom: 0;
+}
+.row-split > .field-sym {
+  flex: 1.15;
+}
+.row-split > .field-entry {
+  flex: 0.85;
+}
 .field {
   margin-bottom: clamp(14px, 1.8vh, 24px);
 }
@@ -101,13 +116,13 @@ html, body {
 }
 label {
   display: block;
-  margin-bottom: clamp(4px, 0.6vh, 8px);
+  margin-bottom: clamp(5px, 0.65vh, 9px);
   font-size: var(--fs-sm);
 }
 input, select {
   width: 100%;
   box-sizing: border-box;
-  padding: clamp(8px, 1vh, 13px) clamp(10px, 1vw, 14px);
+  padding: clamp(10px, 1.2vh, 16px) clamp(12px, 1.2vw, 18px);
   font-family: Arial, Helvetica, sans-serif;
   font-size: var(--fs-base);
   color: var(--fg);
@@ -135,7 +150,7 @@ input, select {
   display: flex;
   justify-content: space-between;
   gap: 12px;
-  padding: clamp(8px, 1vh, 12px) clamp(10px, 1vw, 14px);
+  padding: clamp(9px, 1.1vh, 14px) clamp(12px, 1.2vw, 18px);
   cursor: pointer;
   border-bottom: 1px solid var(--soft);
   font-size: var(--fs-sm);
@@ -158,9 +173,14 @@ input, select {
 .pair {
   display: flex;
   gap: clamp(12px, 1.4vw, 22px);
+  margin-bottom: clamp(14px, 1.8vh, 24px);
+}
+.pair:last-child {
+  margin-bottom: 0;
 }
 .pair .field {
   flex: 1;
+  margin-bottom: 0;
 }
 .qty-box {
   padding: clamp(16px, 2.2vh, 28px) clamp(18px, 2vw, 28px);
@@ -203,6 +223,13 @@ td:last-child {
     flex-direction: column;
     gap: 24px;
   }
+  .row-split, .pair {
+    flex-direction: column;
+    gap: 14px;
+  }
+  .row-split > .field, .pair .field {
+    margin-bottom: 0;
+  }
   table {
     flex: initial;
   }
@@ -226,17 +253,19 @@ td:last-child {
         <button type="button" id="shortBtn">Short</button>
       </div>
 
-      <div class="field">
-        <label for="symbol">Symbol</label>
-        <div class="sym-wrap">
-          <input id="symbol" value="SPY" autocomplete="off" spellcheck="false">
-          <div id="drop"></div>
+      <div class="row-split">
+        <div class="field field-sym">
+          <label for="symbol">Symbol</label>
+          <div class="sym-wrap">
+            <input id="symbol" value="SPY" autocomplete="off" spellcheck="false">
+            <div id="drop"></div>
+          </div>
         </div>
-      </div>
 
-      <div class="field">
-        <label for="entryIn">Entry (blank = market)</label>
-        <input id="entryIn" type="number" step="any" placeholder="market">
+        <div class="field field-entry">
+          <label for="entryIn">Entry (blank = market)</label>
+          <input id="entryIn" type="number" step="any" placeholder="market">
+        </div>
       </div>
 
       <div class="pair">
