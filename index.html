@@ -13,6 +13,13 @@
   --soft: #eeeeee;
   --long: #1a7a3e;
   --short: #b82525;
+  --pad-x: clamp(24px, 4vw, 64px);
+  --pad-y: clamp(20px, 3.5vh, 48px);
+  --gap-main: clamp(28px, 4.5vw, 72px);
+  --fs-base: clamp(14px, 1.05vw, 18px);
+  --fs-sm: clamp(12.5px, 0.9vw, 15px);
+  --fs-title: clamp(16px, 1.25vw, 22px);
+  --fs-qty: clamp(32px, 3.6vw, 56px);
 }
 html, body {
   margin: 0;
@@ -22,12 +29,12 @@ html, body {
   background: var(--bg);
   color: var(--fg);
   font-family: Arial, Helvetica, sans-serif;
-  font-size: 14px;
+  font-size: var(--fs-base);
 }
 .app {
   width: 100%;
   min-height: 100vh;
-  padding: 20px 28px;
+  padding: var(--pad-y) var(--pad-x);
   box-sizing: border-box;
   display: flex;
   flex-direction: column;
@@ -36,37 +43,40 @@ html, body {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding-bottom: 12px;
-  margin-bottom: 20px;
+  padding-bottom: clamp(12px, 1.6vh, 22px);
+  margin-bottom: clamp(18px, 2.8vh, 36px);
   border-bottom: 1px solid #cccccc;
 }
 .title {
-  font-size: 16px;
+  font-size: var(--fs-title);
   font-weight: normal;
 }
 #status {
-  font-size: 13px;
+  font-size: var(--fs-sm);
   color: var(--muted);
 }
 .panes {
   flex: 1;
   display: flex;
-  gap: 36px;
+  align-items: stretch;
+  gap: var(--gap-main);
 }
 .pane {
   flex: 1;
   min-width: 0;
+  display: flex;
+  flex-direction: column;
 }
 .sides {
   display: flex;
-  gap: 8px;
-  margin-bottom: 14px;
+  gap: clamp(8px, 0.9vw, 14px);
+  margin-bottom: clamp(14px, 1.8vh, 24px);
 }
 .sides button {
   flex: 1;
-  padding: 8px 10px;
+  padding: clamp(9px, 1.1vh, 14px) clamp(12px, 1.2vw, 18px);
   font-family: Arial, Helvetica, sans-serif;
-  font-size: 14px;
+  font-size: var(--fs-base);
   border: 1px solid var(--line);
   border-radius: 3px;
   background: #f5f5f5;
@@ -84,22 +94,22 @@ html, body {
   color: #ffffff;
 }
 .field {
-  margin-bottom: 14px;
+  margin-bottom: clamp(14px, 1.8vh, 24px);
 }
 .sym-wrap {
   position: relative;
 }
 label {
   display: block;
-  margin-bottom: 4px;
-  font-size: 13px;
+  margin-bottom: clamp(4px, 0.6vh, 8px);
+  font-size: var(--fs-sm);
 }
 input, select {
   width: 100%;
   box-sizing: border-box;
-  padding: 7px 9px;
+  padding: clamp(8px, 1vh, 13px) clamp(10px, 1vw, 14px);
   font-family: Arial, Helvetica, sans-serif;
-  font-size: 14px;
+  font-size: var(--fs-base);
   color: var(--fg);
   background: var(--bg);
   border: 1px solid var(--line);
@@ -112,7 +122,7 @@ input, select {
   left: 0;
   right: 0;
   z-index: 20;
-  max-height: 240px;
+  max-height: clamp(220px, 32vh, 380px);
   overflow-y: auto;
   background: var(--bg);
   border: 1px solid var(--line);
@@ -125,10 +135,10 @@ input, select {
   display: flex;
   justify-content: space-between;
   gap: 12px;
-  padding: 8px 9px;
+  padding: clamp(8px, 1vh, 12px) clamp(10px, 1vw, 14px);
   cursor: pointer;
   border-bottom: 1px solid var(--soft);
-  font-size: 13px;
+  font-size: var(--fs-sm);
 }
 .opt:last-child {
   border-bottom: 0;
@@ -147,37 +157,43 @@ input, select {
 }
 .pair {
   display: flex;
-  gap: 12px;
+  gap: clamp(12px, 1.4vw, 22px);
 }
 .pair .field {
   flex: 1;
 }
 .qty-box {
-  padding: 14px 16px;
+  padding: clamp(16px, 2.2vh, 28px) clamp(18px, 2vw, 28px);
   border: 1px solid var(--line);
-  margin-bottom: 16px;
+  margin-bottom: clamp(16px, 2.2vh, 28px);
 }
 .qty-label {
-  font-size: 13px;
+  font-size: var(--fs-sm);
   color: #444444;
 }
 .qty-num {
-  margin-top: 4px;
-  font-size: 32px;
+  margin-top: clamp(4px, 0.6vh, 8px);
+  font-size: var(--fs-qty);
+  line-height: 1.1;
 }
 #unit {
-  font-size: 14px;
+  font-size: var(--fs-base);
   color: #444444;
-  margin-left: 6px;
+  margin-left: 8px;
 }
 table {
+  flex: 1;
   width: 100%;
   border-collapse: collapse;
 }
 td {
-  padding: 9px 4px;
+  padding: clamp(10px, 1.5vh, 20px) clamp(4px, 0.5vw, 8px);
   border-bottom: 1px solid #dddddd;
-  font-size: 14px;
+  font-size: var(--fs-base);
+  vertical-align: middle;
+}
+tr:last-child td {
+  border-bottom: 0;
 }
 td:last-child {
   text-align: right;
@@ -186,6 +202,12 @@ td:last-child {
   .panes {
     flex-direction: column;
     gap: 24px;
+  }
+  table {
+    flex: initial;
+  }
+  tr:last-child td {
+    border-bottom: 1px solid #dddddd;
   }
 }
 </style>
