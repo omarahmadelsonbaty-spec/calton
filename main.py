@@ -1,4 +1,6 @@
 import asyncio
+import csv
+import io
 import json
 import logging
 import math
@@ -21,8 +23,9 @@ log = logging.getLogger("calton")
 BASE_DIR = Path(__file__).resolve().parent
 TICKER_CACHE_FILE = BASE_DIR / "tickers_cache.json"
 
-SYMBOL_RE = re.compile(r"^[A-Z0-9^][A-Z0-9^.=\-]{0,20}$")
-PLAIN_TICKER_RE = re.compile(r"^[A-Z0-9]+(?:-[A-Z0-9]+)?$")
+# Supports US, crypto (-USD), FX (=X), futures (=F), indices (^), and global suffixes (.L, .T, .HK, .NS, .SR, etc.)
+SYMBOL_RE = re.compile(r"^[A-Z0-9^][A-Z0-9^.=\-]{0,24}$")
+GLOBAL_TICKER_RE = re.compile(r"^[A-Z0-9]+(?:-[A-Z0-9]+)?(?:\.[A-Z0-9]{1,5})?$")
 
 REFRESH_OK_SECONDS = 24 * 60 * 60
 REFRESH_ERR_SECONDS = 120
@@ -34,90 +37,82 @@ NASDAQ_URLS = (
 )
 SEC_COMPANY_TICKERS_URL = "https://www.sec.gov/files/company_tickers.json"
 
+# Optional open community CSV/JSON symbol feeds (merged when reachable)
+OPEN_GLOBAL_FEEDS = (
+    "https://raw.githubusercontent.com/LondonMarket/Global-Stock-Symbols/master/lse/lse.csv",
+    "https://raw.githubusercontent.com/LondonMarket/Global-Stock-Symbols/master/tsx/tsx.csv",
+    "https://raw.githubusercontent.com/asyminformant/all-stocks/main/NASDAQ/nasdaq_regular_stocks.csv",
+    "https://raw.githubusercontent.com/asyminformant/all-stocks/main/NYSE/nyse_regular_stocks.csv",
+)
+
 CORE_TICKERS = {
-    "SPY": "SPDR S&P 500 ETF",
-    "QQQ": "Invesco QQQ Trust",
-    "DIA": "SPDR Dow Jones ETF",
-    "IWM": "iShares Russell 2000 ETF",
-    "VOO": "Vanguard S&P 500 ETF",
-    "VTI": "Vanguard Total Stock Market ETF",
-    "AAPL": "Apple",
-    "ABBV": "AbbVie",
-    "ABT": "Abbott Laboratories",
-    "ACN": "Accenture",
-    "ADBE": "Adobe",
-    "AMD": "AMD",
-    "AMZN": "Amazon",
-    "AVGO": "Broadcom",
-    "BA": "Boeing",
-    "BAC": "Bank of America",
-    "BRK-B": "Berkshire Hathaway Class B",
-    "CRM": "Salesforce",
-    "COST": "Costco",
-    "CVX": "Chevron",
-    "DIS": "Walt Disney",
-    "GOOGL": "Alphabet Class A",
-    "GOOG": "Alphabet Class C",
-    "HD": "Home Depot",
-    "INTC": "Intel",
-    "JNJ": "Johnson & Johnson",
-    "JPM": "JPMorgan Chase",
-    "KO": "Coca-Cola",
-    "LLY": "Eli Lilly",
-    "MA": "Mastercard",
-    "MCD": "McDonald's",
-    "META": "Meta Platforms",
-    "MRK": "Merck",
-    "MSFT": "Microsoft",
-    "NFLX": "Netflix",
-    "NVDA": "NVIDIA",
-    "ORCL": "Oracle",
-    "PEP": "PepsiCo",
-    "PG": "Procter & Gamble",
-    "PLTR": "Palantir Technologies",
-    "SMCI": "Super Micro Computer",
-    "TMO": "Thermo Fisher Scientific",
-    "TSLA": "Tesla",
-    "UNH": "UnitedHealth",
-    "V": "Visa",
-    "WMT": "Walmart",
-    "XOM": "Exxon Mobil",
+    # US ETFs & Mega-Caps
+    "SPY": "SPDR S&P 500 ETF (US)",
+    "QQQ": "Invesco QQQ Trust (US)",
+    "DIA": "SPDR Dow Jones ETF (US)",
+    "IWM": "iShares Russell 2000 ETF (US)",
+    "VOO": "Vanguard S&P 500 ETF (US)",
+    "VTI": "Vanguard Total Stock Market ETF (US)",
+    "AAPL": "Apple (US)",
+    "MSFT": "Microsoft (US)",
+    "NVDA": "NVIDIA (US)",
+    "AMZN": "Amazon (US)",
+    "GOOGL": "Alphabet (US)",
+    "META": "Meta Platforms (US)",
+    "TSLA": "Tesla (US)",
+    "BRK-B": "Berkshire Hathaway (US)",
+    # Global Equities (Yahoo suffix examples across regions)
+    "HSBA.L": "HSBC Holdings (London)",
+    "SHEL.L": "Shell (London)",
+    "AZN.L": "AstraZeneca (London)",
+    "7203.T": "Toyota Motor (Tokyo)",
+    "6758.T": "Sony Group (Tokyo)",
+    "9984.T": "SoftBank Group (Tokyo)",
+    "0700.HK": "Tencent Holdings (Hong Kong)",
+    "9988.HK": "Alibaba Group (Hong Kong)",
+    "1299.HK": "AIA Group (Hong Kong)",
+    "RELIANCE.NS": "Reliance Industries (NSE India)",
+    "TCS.NS": "Tata Consultancy Services (NSE India)",
+    "HDFCBANK.NS": "HDFC Bank (NSE India)",
+    "SHOP.TO": "Shopify (Toronto)",
+    "RY.TO": "Royal Bank of Canada (Toronto)",
+    "SAP.DE": "SAP SE (XETRA)",
+    "ASML.AS": "ASML Holding (Amsterdam)",
+    "MC.PA": "LVMH (Paris)",
+    "NESN.SW": "Nestle (Zurich)",
+    "NOVO-B.CO": "Novo Nordisk (Copenhagen)",
+    "BHP.AX": "BHP Group (ASX)",
+    "CBA.AX": "Commonwealth Bank (ASX)",
+    "PETR4.SA": "Petrobras (B3 Brazil)",
+    "2222.SR": "Saudi Aramco (Tadawul)",
+    "1120.SR": "Al Rajhi Bank (Tadawul)",
+    # Crypto, FX, Futures, Global Indices
     "BTC-USD": "Bitcoin",
     "ETH-USD": "Ethereum",
     "SOL-USD": "Solana",
-    "XRP-USD": "XRP",
-    "DOGE-USD": "Dogecoin",
     "EURUSD=X": "EUR/USD",
     "GBPUSD=X": "GBP/USD",
     "USDJPY=X": "USD/JPY",
+    "USDSAR=X": "USD/SAR",
     "ES=F": "E-mini S&P 500",
     "MES=F": "Micro E-mini S&P 500",
     "NQ=F": "E-mini Nasdaq 100",
     "MNQ=F": "Micro E-mini Nasdaq 100",
-    "RTY=F": "E-mini Russell 2000",
-    "M2K=F": "Micro E-mini Russell 2000",
-    "YM=F": "E-mini Dow",
-    "MYM=F": "Micro E-mini Dow",
     "CL=F": "Crude Oil WTI",
-    "MCL=F": "Micro Crude Oil WTI",
     "GC=F": "Gold",
-    "MGC=F": "Micro Gold",
-    "SI=F": "Silver",
     "^GSPC": "S&P 500 Index",
     "^NDX": "Nasdaq 100 Index",
-    "^DJI": "Dow Jones Index",
-    "^RUT": "Russell 2000 Index",
-    "^VIX": "VIX",
+    "^FTSE": "FTSE 100 Index",
+    "^N225": "Nikkei 225 Index",
+    "^HSI": "Hang Seng Index",
+    "^TASI.SR": "Tadawul All Share Index",
 }
 
 MULTIPLIERS = {
     "ES=F": 50.0, "MES=F": 5.0,
     "NQ=F": 20.0, "MNQ=F": 2.0,
-    "RTY=F": 50.0, "M2K=F": 5.0,
-    "YM=F": 5.0, "MYM=F": 0.5,
-    "CL=F": 1000.0, "MCL=F": 100.0,
-    "GC=F": 100.0, "MGC=F": 10.0,
-    "SI=F": 5000.0,
+    "CL=F": 1000.0,
+    "GC=F": 100.0,
 }
 
 TIMEFRAMES = {
@@ -140,7 +135,9 @@ def _load_disk_cache() -> dict[str, str]:
             if isinstance(data, dict):
                 for k, v in data.items():
                     if isinstance(k, str) and isinstance(v, str):
-                        merged[k.strip().upper()] = v.strip()
+                        sym = k.strip().upper()
+                        if SYMBOL_RE.match(sym):
+                            merged[sym] = v.strip()
         except Exception as exc:
             log.warning("Failed reading %s: %s", TICKER_CACHE_FILE, exc)
     merged.update(CORE_TICKERS)
@@ -178,9 +175,9 @@ def parse_directory(raw: str, sym_col: str) -> dict[str, str]:
             continue
         if parts[ti].strip() == "Y":
             continue
-        sym = parts[si].strip().replace(".", "-")
+        sym = parts[si].strip().upper().replace(".", "-")
         name = parts[ni].strip()
-        if sym and PLAIN_TICKER_RE.match(sym):
+        if sym and GLOBAL_TICKER_RE.match(sym):
             out[sym] = name
     return out
 
@@ -194,8 +191,27 @@ def parse_sec_tickers(payload: object) -> dict[str, str]:
             continue
         raw_sym = str(row.get("ticker", "")).strip().upper().replace(".", "-")
         title = str(row.get("title", "")).strip()
-        if raw_sym and PLAIN_TICKER_RE.match(raw_sym):
+        if raw_sym and GLOBAL_TICKER_RE.match(raw_sym):
             out[raw_sym] = title or raw_sym
+    return out
+
+
+def parse_csv_symbols(raw_csv: str) -> dict[str, str]:
+    out: dict[str, str] = {}
+    reader = csv.DictReader(io.StringIO(raw_csv))
+    if not reader.fieldnames:
+        return out
+    fields_lower = {f.strip().lower(): f for f in reader.fieldnames}
+    sym_col = fields_lower.get("symbol") or fields_lower.get("ticker")
+    name_col = fields_lower.get("name") or fields_lower.get("company") or fields_lower.get("security name")
+    if not sym_col:
+        return out
+
+    for row in reader:
+        sym = str(row.get(sym_col) or "").strip().upper()
+        name = str(row.get(name_col) or "").strip() if name_col else ""
+        if sym and SYMBOL_RE.match(sym):
+            out[sym] = name or sym
     return out
 
 
@@ -230,12 +246,23 @@ async def refresh_tickers() -> bool:
         except Exception as exc:
             log.warning("SEC ticker fetch failed (%s): %s", SEC_COMPANY_TICKERS_URL, exc)
 
+        for url in OPEN_GLOBAL_FEEDS:
+            try:
+                res = await client.get(url)
+                res.raise_for_status()
+                csv_parsed = parse_csv_symbols(res.text)
+                if csv_parsed:
+                    merged.update(csv_parsed)
+                    any_success = True
+            except Exception as exc:
+                log.warning("Global feed fetch failed (%s): %s", url, exc)
+
     merged.update(CORE_TICKERS)
     _ticker_map = merged
     _tickers = sorted(merged.items())
     if any_success:
         _save_disk_cache(merged)
-    log.info("Loaded %d symbols (synced=%s)", len(_tickers), any_success)
+    log.info("Loaded %d global symbols (synced=%s)", len(_tickers), any_success)
     return any_success
 
 
@@ -260,7 +287,7 @@ async def lifespan(_app: FastAPI):
 
 
 class CalcRequest(BaseModel):
-    symbol: str = Field(min_length=1, max_length=21)
+    symbol: str = Field(min_length=1, max_length=25)
     direction: Literal["LONG", "SHORT"]
     equity: float = Field(gt=0, le=1e12)
     risk_pct: float = Field(gt=0, le=100)
@@ -329,7 +356,7 @@ def _fetch_market_sync(symbol: str, timeframe: str):
         kind, _ = kind_and_unit(symbol)
         resample_kwargs = (
             {"origin": "start_day", "offset": "9h30min"}
-            if kind == "equity"
+            if kind == "equity" and "." not in symbol
             else {"origin": "epoch"}
         )
         bars = bars.resample("4h", **resample_kwargs).agg(
