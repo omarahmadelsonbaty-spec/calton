@@ -88,6 +88,12 @@ html, body {
 .field {
   margin-bottom: calc(14px * var(--scale));
 }
+#lotField {
+  display: none;
+}
+#lotField.show {
+  display: block;
+}
 .sym-wrap {
   position: relative;
 }
@@ -217,6 +223,11 @@ td:last-child {
         </div>
       </div>
 
+      <div class="field" id="lotField">
+        <label for="lotIn">Lot (optional, blank = risk %)</label>
+        <input id="lotIn" type="number" step="0.01" min="0.01" placeholder="e.g. 0.1 or 1">
+      </div>
+
       <div class="field">
         <label for="entryIn">Entry (blank = market)</label>
         <input id="entryIn" type="number" step="any" placeholder="market">
@@ -278,6 +289,18 @@ const STORAGE_KEY = "calton.state.v1";
 
 let dir = "LONG", timer, searchTimer, abortCtrl, searchCtrl, filtered = [], selIdx = -1;
 
+function isForex(sym) {
+  return sym.trim().toUpperCase().endsWith("=X");
+}
+
+function syncLotVisibility() {
+  const fx = isForex($("symbol").value);
+  $("lotField").classList.toggle("show", fx);
+  if (!fx) {
+    $("lotIn").value = "";
+  }
+}
+
 function savePrefs() {
   try {
     localStorage.setItem(STORAGE_KEY, JSON.stringify({
@@ -296,7 +319,7 @@ function loadPrefs() {
     const raw = localStorage.getItem(STORAGE_KEY);
     if (!raw) return;
     const s = JSON.parse(raw);
-    if (s.symbol) $("symbol").value = s.symbol;
+    if (s.symbol) $("symbol").value = s.symbol.toUpperCase();
     if (s.equity) $("equity").value = s.equity;
     if (s.risk) $("risk").value = s.risk;
     if (s.rr) $("rr").value = s.rr;
@@ -313,7 +336,8 @@ function closeDrop() {
 }
 
 function pickSymbol(sym) {
-  $("symbol").value = sym;
+  $("symbol").value = sym.toUpperCase();
+  syncLotVisibility();
   closeDrop();
   savePrefs();
   calc();
@@ -403,13 +427,23 @@ async function calc() {
   abortCtrl = new AbortController();
 
   const symbol = $("symbol").value.trim().toUpperCase();
+  const fx = isForex(symbol);
   const equity = Number($("equity").value);
   const risk_pct = Number($("risk").value);
   const rr = Number($("rr").value);
   const rawEntry = $("entryIn").value.trim();
   const entry_price = rawEntry === "" ? null : Number(rawEntry);
+  const rawLot = fx ? $("lotIn").value.trim() : "";
+  const lots = rawLot === "" ? null : Number(rawLot);
 
-  if (!symbol || !(equity > 0) || !(risk_pct > 0) || !(rr > 0) || (entry_price !== null && !(entry_price > 0))) {
+  if (
+    !symbol ||
+    !(equity > 0) ||
+    !(risk_pct > 0) ||
+    !(rr > 0) ||
+    (entry_price !== null && !(entry_price > 0)) ||
+    (lots !== null && !(lots > 0))
+  ) {
     return fail("bad input");
   }
 
@@ -426,7 +460,8 @@ async function calc() {
         risk_pct,
         rr,
         timeframe: $("tf").value,
-        entry_price
+        entry_price,
+        lots
       }),
       signal: abortCtrl.signal
     });
@@ -454,8 +489,15 @@ function schedule() {
 }
 
 $("symbol").addEventListener("input", () => {
+  const pos = $("symbol").selectionStart;
+  const upper = $("symbol").value.toUpperCase();
+  if ($("symbol").value !== upper) {
+    $("symbol").value = upper;
+    if (pos !== null) $("symbol").setSelectionRange(pos, pos);
+  }
+  syncLotVisibility();
   clearTimeout(searchTimer);
-  searchTimer = setTimeout(() => renderDrop($("symbol").value), 30);
+  searchTimer = setTimeout(() => renderDrop(upper), 30);
   savePrefs();
   schedule();
 });
@@ -486,7 +528,7 @@ document.addEventListener("pointerdown", e => {
   if (!e.target.closest(".sym-wrap")) closeDrop();
 });
 
-["entryIn", "equity", "risk", "rr", "tf"].forEach(id => {
+["lotIn", "entryIn", "equity", "risk", "rr", "tf"].forEach(id => {
   $(id).addEventListener("input", () => {
     savePrefs();
     schedule();
@@ -498,6 +540,7 @@ document.addEventListener("pointerdown", e => {
 });
 
 loadPrefs();
+syncLotVisibility();
 applyDirStyle();
 calc();
 </script>

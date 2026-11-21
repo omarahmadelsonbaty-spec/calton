@@ -23,13 +23,13 @@ log = logging.getLogger("calton")
 BASE_DIR = Path(__file__).resolve().parent
 TICKER_CACHE_FILE = BASE_DIR / "tickers_cache.json"
 
-# Supports US, crypto (-USD), FX (=X), futures (=F), indices (^), and global suffixes (.L, .T, .HK, .NS, .SR, etc.)
 SYMBOL_RE = re.compile(r"^[A-Z0-9^][A-Z0-9^.=\-]{0,24}$")
 GLOBAL_TICKER_RE = re.compile(r"^[A-Z0-9]+(?:-[A-Z0-9]+)?(?:\.[A-Z0-9]{1,5})?$")
 
 REFRESH_OK_SECONDS = 24 * 60 * 60
 REFRESH_ERR_SECONDS = 120
 MARKET_CACHE_TTL_SECONDS = 15.0
+STANDARD_LOT_UNITS = 100_000.0
 
 NASDAQ_URLS = (
     ("https://www.nasdaqtrader.com/dynamic/SymDir/nasdaqlisted.txt", "Symbol"),
@@ -37,7 +37,6 @@ NASDAQ_URLS = (
 )
 SEC_COMPANY_TICKERS_URL = "https://www.sec.gov/files/company_tickers.json"
 
-# Optional open community CSV/JSON symbol feeds (merged when reachable)
 OPEN_GLOBAL_FEEDS = (
     "https://raw.githubusercontent.com/LondonMarket/Global-Stock-Symbols/master/lse/lse.csv",
     "https://raw.githubusercontent.com/LondonMarket/Global-Stock-Symbols/master/tsx/tsx.csv",
@@ -46,7 +45,6 @@ OPEN_GLOBAL_FEEDS = (
 )
 
 CORE_TICKERS = {
-    # US ETFs & Mega-Caps
     "SPY": "SPDR S&P 500 ETF (US)",
     "QQQ": "Invesco QQQ Trust (US)",
     "DIA": "SPDR Dow Jones ETF (US)",
@@ -61,7 +59,6 @@ CORE_TICKERS = {
     "META": "Meta Platforms (US)",
     "TSLA": "Tesla (US)",
     "BRK-B": "Berkshire Hathaway (US)",
-    # Global Equities (Yahoo suffix examples across regions)
     "HSBA.L": "HSBC Holdings (London)",
     "SHEL.L": "Shell (London)",
     "AZN.L": "AstraZeneca (London)",
@@ -86,7 +83,6 @@ CORE_TICKERS = {
     "PETR4.SA": "Petrobras (B3 Brazil)",
     "2222.SR": "Saudi Aramco (Tadawul)",
     "1120.SR": "Al Rajhi Bank (Tadawul)",
-    # Crypto, FX, Futures, Global Indices
     "BTC-USD": "Bitcoin",
     "ETH-USD": "Ethereum",
     "SOL-USD": "Solana",
@@ -109,8 +105,10 @@ CORE_TICKERS = {
 }
 
 MULTIPLIERS = {
-    "ES=F": 50.0, "MES=F": 5.0,
-    "NQ=F": 20.0, "MNQ=F": 2.0,
+    "ES=F": 50.0,
+    "MES=F": 5.0,
+    "NQ=F": 20.0,
+    "MNQ=F": 2.0,
     "CL=F": 1000.0,
     "GC=F": 100.0,
 }
@@ -294,13 +292,18 @@ class CalcRequest(BaseModel):
     rr: float = Field(gt=0, le=100)
     timeframe: Literal["1m", "5m", "15m", "30m", "1h", "4h", "1d", "1w"] = "5m"
     entry_price: Optional[float] = Field(default=None, gt=0, le=1e12)
+    lots: Optional[float] = Field(default=None, gt=0, le=1e6)
 
 
 def atr(bars, period: int = 14) -> Optional[float]:
-    if len(bars) < 2:
+    if bars is None or len(bars) < 2:
         return None
     h, l, c = bars["High"].tolist(), bars["Low"].tolist(), bars["Close"].tolist()
-    trs = [max(h[i] - l[i], abs(h[i] - c[i - 1]), abs(l[i] - c[i - 1])) for i in range(1, len(c))]
+    trs = [
+        max(h[i] - l[i], abs(h[i] - c[i - 1]), abs(l[i] - c[i - 1]))
+        for i in range(1, len(c))
+        if all(math.isfinite(x) for x in (h[i], l[i], c[i], c[i - 1]))
+    ]
     if not trs:
         return None
     n = min(period, len(trs))
@@ -330,6 +333,52 @@ def decimals(price: float) -> int:
     return 8
 
 
+def compute_universal_stop(bars, entry: float, direction: str, dp: int) -> float:
+    step = 10.0 ** (-dp)
+    active_bars = bars.iloc[:-1] if bars is not None and len(bars) > 1 else bars
+    vol = atr(active_bars)
+
+    if vol is None or not math.isfinite(vol) or vol <= 0:
+        vol = max(entry * 0.01, step * 5)
+
+    if active_bars is not None and len(active_bars) > 0:
+        window = active_bars.tail(min(20, len(active_bars)))
+        swing_low = float(window["Low"].min())
+        swing_high = float(window["High"].max())
+    else:
+        swing_low = entry - vol
+        swing_high = entry + vol
+
+    if direction == "LONG":
+        atr_stop = entry - 1.5 * vol
+        if math.isfinite(swing_low) and swing_low < entry:
+            struct_stop = swing_low - 0.25 * vol
+            raw_stop = min(atr_stop, struct_stop)
+        else:
+            raw_stop = atr_stop
+
+        stop = round(raw_stop, dp)
+        if stop >= entry:
+            stop = round(entry - max(step, round(vol * 0.5, dp)), dp)
+        if stop >= entry:
+            stop = entry - step
+        return max(step, stop)
+
+    atr_stop = entry + 1.5 * vol
+    if math.isfinite(swing_high) and swing_high > entry:
+        struct_stop = swing_high + 0.25 * vol
+        raw_stop = max(atr_stop, struct_stop)
+    else:
+        raw_stop = atr_stop
+
+    stop = round(raw_stop, dp)
+    if stop <= entry:
+        stop = round(entry + max(step, round(vol * 0.5, dp)), dp)
+    if stop <= entry:
+        stop = entry + step
+    return stop
+
+
 def _fetch_market_sync(symbol: str, timeframe: str):
     key = (symbol, timeframe)
     now = time.monotonic()
@@ -347,27 +396,31 @@ def _fetch_market_sync(symbol: str, timeframe: str):
         pass
 
     period, interval = TIMEFRAMES[timeframe]
-    hist = t.history(period=period, interval=interval, auto_adjust=False)
-    if hist.empty:
-        return None, None
-
-    bars = hist[["High", "Low", "Close"]].dropna()
-    if timeframe == "4h":
-        kind, _ = kind_and_unit(symbol)
-        resample_kwargs = (
-            {"origin": "start_day", "offset": "9h30min"}
-            if kind == "equity" and "." not in symbol
-            else {"origin": "epoch"}
-        )
-        bars = bars.resample("4h", **resample_kwargs).agg(
-            {"High": "max", "Low": "min", "Close": "last"}
-        ).dropna()
+    bars = None
+    try:
+        hist = t.history(period=period, interval=interval, auto_adjust=False)
+        if hist is not None and not hist.empty:
+            bars = hist[["High", "Low", "Close"]].dropna()
+            if timeframe == "4h" and len(bars) > 0:
+                bars = (
+                    bars.resample("4h", origin="epoch")
+                    .agg({"High": "max", "Low": "min", "Close": "last"})
+                    .dropna()
+                )
+    except Exception as exc:
+        log.warning("Market history fetch failed for %s (%s): %s", symbol, timeframe, exc)
+        bars = None
 
     _market_cache[key] = (now, last, bars)
     return last, bars
 
 
 app = FastAPI(title="calton", lifespan=lifespan)
+
+
+@app.get("/health", include_in_schema=False)
+def health():
+    return {"ok": True}
 
 
 @app.get("/", include_in_schema=False)
@@ -381,7 +434,6 @@ async def tickers(q: str = Query("", max_length=32), limit: int = Query(50, ge=1
     if not query:
         return [{"symbol": s, "name": n} for s, n in _tickers[:limit]]
 
-    # Ticker-symbol-only matching: starts-with first, then substring in ticker symbol.
     prefix = []
     contains = []
     for s, n in _tickers:
@@ -402,42 +454,26 @@ async def calc(req: CalcRequest):
         raise HTTPException(400, "Invalid symbol")
 
     last, bars = await asyncio.to_thread(_fetch_market_sync, symbol, req.timeframe)
-    if bars is None or bars.empty:
+
+    fallback_close = None
+    if bars is not None and not bars.empty:
+        fallback_close = float(bars["Close"].iloc[-1])
+
+    raw_entry = req.entry_price if req.entry_price is not None else (last or fallback_close)
+    if raw_entry is None or not math.isfinite(raw_entry) or raw_entry <= 0:
         raise HTTPException(404, "No market data")
 
-    if len(bars) < 16:
-        raise HTTPException(422, "Insufficient history")
+    dp = decimals(raw_entry)
+    entry = round(raw_entry, dp)
+    if entry <= 0:
+        raise HTTPException(422, "Invalid entry price")
 
-    if last is None:
-        last = float(bars["Close"].iloc[-1])
-
-    completed = bars.iloc[:-1]
-    vol = atr(completed)
-    if vol is None:
-        raise HTTPException(422, "Volatility unavailable")
-
-    entry = req.entry_price if req.entry_price is not None else last
-    dp = decimals(entry)
-    entry = round(entry, dp)
-
-    sign = 1 if req.direction == "LONG" else -1
-    window = completed.tail(20)
-
-    if sign == 1:
-        swing = float(window["Low"].min())
-        stop = round(min(swing - 0.2 * vol, entry - vol), dp)
-        if stop >= entry:
-            raise HTTPException(422, "Stop above entry")
-    else:
-        swing = float(window["High"].max())
-        stop = round(max(swing + 0.2 * vol, entry + vol), dp)
-        if stop <= entry:
-            raise HTTPException(422, "Stop below entry")
-
+    stop = compute_universal_stop(bars, entry, req.direction, dp)
     dist = abs(entry - stop)
     if dist <= 0:
         raise HTTPException(422, "Invalid stop distance")
 
+    sign = 1 if req.direction == "LONG" else -1
     kind, unit = kind_and_unit(symbol)
     mult = MULTIPLIERS.get(symbol, 1.0)
     if kind == "fx" and symbol.startswith("USD") and symbol.endswith("=X") and not symbol.endswith("USD=X"):
@@ -448,13 +484,17 @@ async def calc(req: CalcRequest):
     if risk_per_unit <= 0:
         raise HTTPException(422, "Invalid risk per unit")
 
-    raw_qty = risk_budget / risk_per_unit
-    if kind == "future":
-        qty = math.floor(raw_qty)
-    elif kind == "equity":
-        qty = math.floor(raw_qty * 1e4) / 1e4
+    if kind == "fx" and req.lots is not None:
+        qty = round(req.lots * STANDARD_LOT_UNITS, 2)
+        unit = f"units ({req.lots:g} lot{'s' if req.lots != 1 else ''})"
     else:
-        qty = math.floor(raw_qty * 1e6) / 1e6
+        raw_qty = risk_budget / risk_per_unit
+        if kind == "future":
+            qty = math.floor(raw_qty)
+        elif kind == "equity":
+            qty = math.floor(raw_qty * 1e4) / 1e4
+        else:
+            qty = math.floor(raw_qty * 1e6) / 1e6
 
     if qty <= 0:
         raise HTTPException(422, "Account too small")
