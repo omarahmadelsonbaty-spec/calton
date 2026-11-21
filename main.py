@@ -15,7 +15,7 @@ from fastapi.responses import FileResponse
 from pydantic import BaseModel, Field
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s: %(message)s")
-log = logging.getLogger("pos")
+log = logging.getLogger("calton")
 
 BASE_DIR = Path(__file__).resolve().parent
 SYMBOL_RE = re.compile(r"^[A-Z0-9^][A-Z0-9^.=\-]{0,20}$")
@@ -23,6 +23,7 @@ PLAIN_TICKER_RE = re.compile(r"^[A-Z0-9]+(?:-[A-Z0-9]+)?$")
 
 REFRESH_OK_SECONDS = 24 * 60 * 60
 REFRESH_ERR_SECONDS = 300
+MARKET_CACHE_TTL_SECONDS = 15.0
 
 NASDAQ_URLS = (
     ("https://www.nasdaqtrader.com/dynamic/SymDir/nasdaqlisted.txt", "Symbol"),
@@ -35,12 +36,18 @@ CORE_TICKERS = {
     "DIA": "SPDR Dow Jones ETF",
     "IWM": "iShares Russell 2000 ETF",
     "AAPL": "Apple",
+    "ABBV": "AbbVie",
+    "ACN": "Accenture",
+    "ADBE": "Adobe",
+    "AMD": "AMD",
+    "AMZN": "Amazon",
+    "AVGO": "Broadcom",
+    "BA": "Boeing",
+    "BAC": "Bank of America",
+    "META": "Meta",
     "MSFT": "Microsoft",
     "NVDA": "NVIDIA",
-    "AMZN": "Amazon",
-    "META": "Meta",
     "TSLA": "Tesla",
-    "AMD": "AMD",
     "BTC-USD": "Bitcoin",
     "ETH-USD": "Ethereum",
     "SOL-USD": "Solana",
@@ -88,7 +95,8 @@ TIMEFRAMES = {
 }
 
 _tickers: list[tuple[str, str]] = sorted(CORE_TICKERS.items())
-_tickers_updated_at: float = 0.0
+_tickers_ready = asyncio.Event()
+_market_cache: dict[tuple[str, str], tuple[float, Optional[float], object]] = {}
 
 
 def parse_directory(raw: str, sym_col: str) -> dict[str, str]:
@@ -118,12 +126,12 @@ def parse_directory(raw: str, sym_col: str) -> dict[str, str]:
 
 
 async def refresh_tickers() -> bool:
-    global _tickers, _tickers_updated_at
+    global _tickers
     merged = dict(CORE_TICKERS)
     ok = True
 
     async with httpx.AsyncClient(
-        timeout=20.0,
+        timeout=15.0,
         follow_redirects=True,
         headers={"User-Agent": "Mozilla/5.0"},
     ) as client:
@@ -138,7 +146,7 @@ async def refresh_tickers() -> bool:
 
     merged.update(CORE_TICKERS)
     _tickers = sorted(merged.items())
-    _tickers_updated_at = time.monotonic()
+    _tickers_ready.set()
     log.info("Loaded %d symbols (ok=%s)", len(_tickers), ok)
     return ok
 
@@ -169,7 +177,7 @@ class CalcRequest(BaseModel):
     equity: float = Field(gt=0, le=1e12)
     risk_pct: float = Field(gt=0, le=100)
     rr: float = Field(gt=0, le=100)
-    timeframe: Literal["1m", "5m", "15m", "30m", "1h", "4h", "1d", "1w"] = "1d"
+    timeframe: Literal["1m", "5m", "15m", "30m", "1h", "4h", "1d", "1w"] = "5m"
     entry_price: Optional[float] = Field(default=None, gt=0, le=1e12)
 
 
@@ -207,40 +215,12 @@ def decimals(price: float) -> int:
     return 8
 
 
-app = FastAPI(title="pos", lifespan=lifespan)
-
-
-@app.get("/", include_in_schema=False)
-def index():
-    return FileResponse(BASE_DIR / "index.html", headers={"Cache-Control": "no-cache"})
-
-
-@app.get("/api/tickers")
-async def tickers(q: str = Query("", max_length=32), limit: int = Query(50, ge=1, le=200)):
-    if not _tickers_updated_at:
-        await refresh_tickers()
-    query = q.strip().upper()
-    if not query:
-        return [{"symbol": s, "name": n} for s, n in _tickers[:limit]]
-
-    prefix = []
-    contains = []
-    for s, n in _tickers:
-        if s.startswith(query):
-            prefix.append({"symbol": s, "name": n})
-        elif query in s or query in n.upper():
-            contains.append({"symbol": s, "name": n})
-        if len(prefix) + len(contains) >= limit * 2:
-            break
-
-    return (prefix + contains)[:limit]
-
-
-@app.post("/api/calc")
-def calc(req: CalcRequest):
-    symbol = req.symbol.strip().upper()
-    if not SYMBOL_RE.match(symbol):
-        raise HTTPException(400, "Invalid symbol")
+def _fetch_market_sync(symbol: str, timeframe: str):
+    key = (symbol, timeframe)
+    now = time.monotonic()
+    cached = _market_cache.get(key)
+    if cached and (now - cached[0]) < MARKET_CACHE_TTL_SECONDS:
+        return cached[1], cached[2]
 
     t = yf.Ticker(symbol)
     last = None
@@ -251,16 +231,64 @@ def calc(req: CalcRequest):
     except Exception:
         pass
 
-    period, interval = TIMEFRAMES[req.timeframe]
+    period, interval = TIMEFRAMES[timeframe]
     hist = t.history(period=period, interval=interval, auto_adjust=False)
     if hist.empty:
-        raise HTTPException(404, "No market data")
+        return None, None
 
     bars = hist[["High", "Low", "Close"]].dropna()
-    if req.timeframe == "4h":
-        bars = bars.resample("4h", origin="start_day", offset="9h30min").agg(
+    if timeframe == "4h":
+        kind, _ = kind_and_unit(symbol)
+        resample_kwargs = (
+            {"origin": "start_day", "offset": "9h30min"}
+            if kind == "equity"
+            else {"origin": "epoch"}
+        )
+        bars = bars.resample("4h", **resample_kwargs).agg(
             {"High": "max", "Low": "min", "Close": "last"}
         ).dropna()
+
+    _market_cache[key] = (now, last, bars)
+    return last, bars
+
+
+app = FastAPI(title="calton", lifespan=lifespan)
+
+
+@app.get("/", include_in_schema=False)
+def index():
+    return FileResponse(BASE_DIR / "index.html", headers={"Cache-Control": "no-cache"})
+
+
+@app.get("/api/tickers")
+async def tickers(q: str = Query("", max_length=32), limit: int = Query(50, ge=1, le=200)):
+    query = q.strip().upper()
+    if not query:
+        return [{"symbol": s, "name": n} for s, n in _tickers[:limit]]
+
+    # Ticker-symbol-only matching: starts-with first, then substring in ticker symbol.
+    prefix = []
+    contains = []
+    for s, n in _tickers:
+        if s.startswith(query):
+            prefix.append({"symbol": s, "name": n})
+        elif query in s:
+            contains.append({"symbol": s, "name": n})
+        if len(prefix) + len(contains) >= limit * 2:
+            break
+
+    return (prefix + contains)[:limit]
+
+
+@app.post("/api/calc")
+async def calc(req: CalcRequest):
+    symbol = req.symbol.strip().upper()
+    if not SYMBOL_RE.match(symbol):
+        raise HTTPException(400, "Invalid symbol")
+
+    last, bars = await asyncio.to_thread(_fetch_market_sync, symbol, req.timeframe)
+    if bars is None or bars.empty:
+        raise HTTPException(404, "No market data")
 
     if len(bars) < 16:
         raise HTTPException(422, "Insufficient history")

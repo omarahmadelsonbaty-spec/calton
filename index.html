@@ -1,17 +1,26 @@
 <!doctype html>
-<html>
+<html lang="en">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>calton</title>
 <style>
+:root {
+  --bg: #ffffff;
+  --fg: #000000;
+  --muted: #555555;
+  --line: #888888;
+  --soft: #eeeeee;
+  --long: #1a7a3e;
+  --short: #b82525;
+}
 html, body {
   margin: 0;
   padding: 0;
   width: 100%;
   min-height: 100vh;
-  background: #ffffff;
-  color: #000000;
+  background: var(--bg);
+  color: var(--fg);
   font-family: Arial, Helvetica, sans-serif;
   font-size: 14px;
 }
@@ -37,7 +46,7 @@ html, body {
 }
 #status {
   font-size: 13px;
-  color: #555555;
+  color: var(--muted);
 }
 .panes {
   flex: 1;
@@ -58,20 +67,20 @@ html, body {
   padding: 8px 10px;
   font-family: Arial, Helvetica, sans-serif;
   font-size: 14px;
-  border: 1px solid #888888;
+  border: 1px solid var(--line);
   border-radius: 3px;
   background: #f5f5f5;
-  color: #000000;
+  color: var(--fg);
   cursor: pointer;
 }
 .sides button.long-active {
-  background: #1a7a3e;
-  border-color: #1a7a3e;
+  background: var(--long);
+  border-color: var(--long);
   color: #ffffff;
 }
 .sides button.short-active {
-  background: #b82525;
-  border-color: #b82525;
+  background: var(--short);
+  border-color: var(--short);
   color: #ffffff;
 }
 .field {
@@ -91,9 +100,9 @@ input, select {
   padding: 7px 9px;
   font-family: Arial, Helvetica, sans-serif;
   font-size: 14px;
-  color: #000000;
-  background: #ffffff;
-  border: 1px solid #888888;
+  color: var(--fg);
+  background: var(--bg);
+  border: 1px solid var(--line);
   border-radius: 0;
 }
 #drop {
@@ -103,10 +112,10 @@ input, select {
   left: 0;
   right: 0;
   z-index: 20;
-  max-height: 220px;
+  max-height: 240px;
   overflow-y: auto;
-  background: #ffffff;
-  border: 1px solid #888888;
+  background: var(--bg);
+  border: 1px solid var(--line);
   border-top: 0;
 }
 #drop.open {
@@ -116,19 +125,22 @@ input, select {
   display: flex;
   justify-content: space-between;
   gap: 12px;
-  padding: 7px 9px;
+  padding: 8px 9px;
   cursor: pointer;
-  border-bottom: 1px solid #eeeeee;
+  border-bottom: 1px solid var(--soft);
   font-size: 13px;
 }
 .opt:last-child {
   border-bottom: 0;
 }
 .opt:hover, .opt.sel {
-  background: #eeeeee;
+  background: var(--soft);
+}
+.opt-sym {
+  font-weight: bold;
 }
 .opt-name {
-  color: #555555;
+  color: var(--muted);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -142,7 +154,7 @@ input, select {
 }
 .qty-box {
   padding: 14px 16px;
-  border: 1px solid #888888;
+  border: 1px solid var(--line);
   margin-bottom: 16px;
 }
 .qty-label {
@@ -257,11 +269,40 @@ td:last-child {
 
 <script>
 const $ = id => document.getElementById(id);
+const STORAGE_KEY = "calton.state.v1";
+
 let dir = "LONG", timer, searchTimer, abortCtrl, searchCtrl, filtered = [], selIdx = -1;
+
+function savePrefs() {
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify({
+      dir,
+      symbol: $("symbol").value.trim().toUpperCase(),
+      equity: $("equity").value,
+      risk: $("risk").value,
+      rr: $("rr").value,
+      tf: $("tf").value
+    }));
+  } catch (_) {}
+}
+
+function loadPrefs() {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (!raw) return;
+    const s = JSON.parse(raw);
+    if (s.symbol) $("symbol").value = s.symbol;
+    if (s.equity) $("equity").value = s.equity;
+    if (s.risk) $("risk").value = s.risk;
+    if (s.rr) $("rr").value = s.rr;
+    if (s.tf && $("tf").querySelector(`option[value="${s.tf}"]`)) $("tf").value = s.tf;
+    if (s.dir === "LONG" || s.dir === "SHORT") dir = s.dir;
+  } catch (_) {}
+}
 
 function closeDrop() {
   $("drop").className = "";
-  $("drop").innerHTML = "";
+  $("drop").replaceChildren();
   filtered = [];
   selIdx = -1;
 }
@@ -269,6 +310,7 @@ function closeDrop() {
 function pickSymbol(sym) {
   $("symbol").value = sym;
   closeDrop();
+  savePrefs();
   calc();
 }
 
@@ -277,6 +319,40 @@ function highlight() {
     el.classList.toggle("sel", i === selIdx);
     if (i === selIdx) el.scrollIntoView({ block: "nearest" });
   });
+}
+
+function paintOptions(rows) {
+  filtered = rows.map(r => [r.symbol, r.name]);
+  selIdx = -1;
+  if (!filtered.length) return closeDrop();
+
+  const drop = $("drop");
+  const frag = document.createDocumentFragment();
+  filtered.forEach(([s, n], i) => {
+    const row = document.createElement("div");
+    row.className = "opt";
+
+    const symSpan = document.createElement("span");
+    symSpan.className = "opt-sym";
+    symSpan.textContent = s;
+
+    const nameSpan = document.createElement("span");
+    nameSpan.className = "opt-name";
+    nameSpan.textContent = n;
+
+    row.append(symSpan, nameSpan);
+    row.onpointerdown = e => {
+      e.preventDefault();
+      pickSymbol(s);
+    };
+    row.onmouseenter = () => {
+      selIdx = i;
+      highlight();
+    };
+    frag.appendChild(row);
+  });
+  drop.replaceChildren(frag);
+  drop.className = "open";
 }
 
 async function renderDrop(q) {
@@ -289,36 +365,21 @@ async function renderDrop(q) {
     const res = await fetch(`/api/tickers?q=${encodeURIComponent(clean)}&limit=50`, { signal: searchCtrl.signal });
     if (!res.ok) return closeDrop();
     const rows = await res.json();
-    filtered = rows.map(r => [r.symbol, r.name]);
-    selIdx = -1;
-    if (!filtered.length) return closeDrop();
-
-    const drop = $("drop");
-    drop.innerHTML = "";
-    filtered.forEach(([s, n], i) => {
-      const row = document.createElement("div");
-      row.className = "opt";
-      row.innerHTML = `<span>${s}</span><span class="opt-name">${n}</span>`;
-      row.onpointerdown = e => {
-        e.preventDefault();
-        pickSymbol(s);
-      };
-      row.onmouseenter = () => {
-        selIdx = i;
-        highlight();
-      };
-      drop.appendChild(row);
-    });
-    drop.className = "open";
+    paintOptions(rows);
   } catch (e) {
     if (e.name !== "AbortError") closeDrop();
   }
 }
 
-function setDir(next) {
-  dir = next;
+function applyDirStyle() {
   $("longBtn").className = dir === "LONG" ? "long-active" : "";
   $("shortBtn").className = dir === "SHORT" ? "short-active" : "";
+}
+
+function setDir(next) {
+  dir = next;
+  applyDirStyle();
+  savePrefs();
   calc();
 }
 
@@ -389,7 +450,8 @@ function schedule() {
 
 $("symbol").addEventListener("input", () => {
   clearTimeout(searchTimer);
-  searchTimer = setTimeout(() => renderDrop($("symbol").value), 80);
+  searchTimer = setTimeout(() => renderDrop($("symbol").value), 30);
+  savePrefs();
   schedule();
 });
 
@@ -420,11 +482,19 @@ document.addEventListener("pointerdown", e => {
 });
 
 ["entryIn", "equity", "risk", "rr", "tf"].forEach(id => {
-  $(id).addEventListener("input", schedule);
-  $(id).addEventListener("change", calc);
+  $(id).addEventListener("input", () => {
+    savePrefs();
+    schedule();
+  });
+  $(id).addEventListener("change", () => {
+    savePrefs();
+    calc();
+  });
 });
 
-setDir("LONG");
+loadPrefs();
+applyDirStyle();
+calc();
 </script>
 </body>
 </html>
